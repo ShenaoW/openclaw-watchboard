@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
+import RiskDatabaseService from '../services/RiskDatabaseService';
 
 export class RiskController {
+  private riskDatabaseService = new RiskDatabaseService();
+
   /**
    * 获取 OpenClaw Top 10 风险
    */
@@ -54,6 +57,21 @@ export class RiskController {
           total: top10Risks.length,
           lastUpdated: new Date().toISOString()
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * 获取 OpenClaw 已披露漏洞列表
+   */
+  async getVulnerabilities(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await this.riskDatabaseService.getVulnerabilities();
+      res.json({
+        success: true,
+        data: { ...data, lastUpdated: new Date().toISOString() },
       });
     } catch (error) {
       next(error);

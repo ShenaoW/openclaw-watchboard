@@ -14,10 +14,16 @@ router.get('/trusted', skillController.getTrustedSkills.bind(skillController));
 // 获取可疑/投毒 Skill 检测结果
 router.get('/suspicious', skillController.getSuspiciousSkills.bind(skillController));
 
+// 获取恶意 Skill 检测结果
+router.get('/malicious', skillController.getMaliciousSkills.bind(skillController));
+
 // 获取 Skill 安全分析报告
 router.get('/analysis/:skillId', skillController.getSkillAnalysis.bind(skillController));
 
 // 获取 Skill 使用统计
+router.get('/stats', skillController.getSkillUsageStats.bind(skillController));
+
+// 获取 Skill 使用统计 (legacy endpoint)
 router.get('/usage/stats', skillController.getSkillUsageStats.bind(skillController));
 
 // 添加 Skill 到可信列表
