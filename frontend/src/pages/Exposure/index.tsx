@@ -21,10 +21,9 @@ import {
   ReloadOutlined,
   ScanOutlined,
   SearchOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
 import { Column } from "@ant-design/charts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ComposableMap,
   Geographies,
@@ -61,6 +60,140 @@ const countryNameMap: Record<string, string> = {
   "United Kingdom": "英国",
 };
 
+const provinceNameMap: Record<string, string> = {
+  Beijing: "北京",
+  Shanghai: "上海",
+  Tianjin: "天津",
+  Chongqing: "重庆",
+  Guangdong: "广东",
+  Zhejiang: "浙江",
+  Jiangsu: "江苏",
+  Shandong: "山东",
+  Sichuan: "四川",
+  Hubei: "湖北",
+  Hunan: "湖南",
+  Henan: "河南",
+  Hebei: "河北",
+  Fujian: "福建",
+  Anhui: "安徽",
+  Jiangxi: "江西",
+  Shaanxi: "陕西",
+  Liaoning: "辽宁",
+  Jilin: "吉林",
+  Heilongjiang: "黑龙江",
+  "Hong Kong": "香港",
+  HongKong: "香港",
+  Hainan: "海南",
+  Guangxi: "广西",
+  "Guangxi Zhuangzu": "广西",
+  Yunnan: "云南",
+  Guizhou: "贵州",
+  Gansu: "甘肃",
+  Shanxi: "山西",
+  "Nei Mongol": "内蒙古",
+  Xinjiang: "新疆",
+  "Xinjiang Uygur": "新疆",
+  Tibet: "西藏",
+  Qinghai: "青海",
+  "Ningxia Huizu": "宁夏",
+};
+
+const cityNameMap: Record<string, string> = {
+  Beijing: "北京",
+  Shanghai: "上海",
+  Guangzhou: "广州",
+  Hangzhou: "杭州",
+  "Hong Kong": "香港",
+  Shenzhen: "深圳",
+  Chengdu: "成都",
+  Nanjing: "南京",
+  Qingdao: "青岛",
+  Guiyang: "贵阳",
+  Xiamen: "厦门",
+  Chongqing: "重庆",
+  Wuhan: "武汉",
+  Suzhou: "苏州",
+  Yangzhou: "扬州",
+  Huizhou: "惠州",
+  Ningbo: "宁波",
+  Lanzhou: "兰州",
+  Fuzhou: "福州",
+  Leshan: "乐山",
+  Zhengzhou: "郑州",
+  Hefei: "合肥",
+  Jinan: "济南",
+  Tianjin: "天津",
+  Changsha: "长沙",
+  Shiyan: "十堰",
+  Taizhou: "台州",
+  Kunming: "昆明",
+  Wenzhou: "温州",
+  Dongguan: "东莞",
+  Xiangyang: "襄阳",
+  Guyuan: "固原",
+  Nanchang: "南昌",
+  Fuqing: "福清",
+  Wuxi: "无锡",
+  Zhongshan: "中山",
+  Zhenjiang: "镇江",
+  Hohhot: "呼和浩特",
+  Jinhua: "金华",
+  "Xi'an": "西安",
+  Shenyang: "沈阳",
+  Linyi: "临沂",
+  Jiaxing: "嘉兴",
+  Zhongwei: "中卫",
+  Jiangmen: "江门",
+  Zhangzhou: "漳州",
+  Suqian: "宿迁",
+  Harbin: "哈尔滨",
+  Huzhou: "湖州",
+  Quanzhou: "泉州",
+  Xinyang: "信阳",
+  Shaoxing: "绍兴",
+  Xuzhou: "徐州",
+  Nanning: "南宁",
+  Weihai: "威海",
+  Shijiazhuang: "石家庄",
+  Dalian: "大连",
+  Foshan: "佛山",
+  Xuchang: "许昌",
+  Langfang: "廊坊",
+  Taiyuan: "太原",
+  Haikou: "海口",
+  Ningde: "宁德",
+  Changzhou: "常州",
+  Changchun: "长春",
+  Yichang: "宜昌",
+  Putian: "莆田",
+  Nantong: "南通",
+  Fuyang: "阜阳",
+  Wuhu: "芜湖",
+  Shaoyang: "邵阳",
+  Jilin: "吉林",
+  Luoyang: "洛阳",
+  Yantai: "烟台",
+  Weifang: "潍坊",
+  Yiwu: "义乌",
+  Yancheng: "盐城",
+  "Ma'anshan": "马鞍山",
+  Chizhou: "池州",
+  Shihezi: "石河子",
+  "Lu'an": "六安",
+  Zhuhai: "珠海",
+  Meishan: "眉山",
+  Yinchuan: "银川",
+  Baoding: "保定",
+  Jingdezhen: "景德镇",
+  Benxi: "本溪",
+  Panjin: "盘锦",
+  Jiujiang: "九江",
+  Maoming: "茂名",
+  Meizhou: "梅州",
+  Qingyuan: "清远",
+  Shantou: "汕头",
+};
+
 const geoData = feature(
   worldAtlas as any,
   (worldAtlas as any).objects.countries,
@@ -81,27 +214,56 @@ function getPortColor(port: number): string {
   return "#1677ff";
 }
 
-function getRiskColor(level: string) {
-  switch (level) {
-    case "Critical":
-      return "red";
-    case "High":
-      return "orange";
-    case "Medium":
-      return "gold";
-    case "Low":
+function getRuntimeStatusColor(status: string) {
+  switch (status) {
+    case "Active":
       return "green";
+    case "Inactive":
+      return "red";
     default:
       return "default";
   }
 }
 
+function getWorldDistributionColor(count: number, maxCount: number) {
+  const ratio = maxCount > 0 ? Math.min(Math.max(count / maxCount, 0), 1) : 0;
+  if (ratio >= 0.75) return "#ff4d4f";
+  if (ratio >= 0.5) return "#ff7a45";
+  if (ratio >= 0.25) return "#fadb14";
+  return "#1677ff";
+}
+
+function getChinaDistributionColor(count: number, maxCount: number) {
+  const ratio = maxCount > 0 ? Math.min(Math.max(count / maxCount, 0), 1) : 0;
+  if (ratio >= 0.6) return "#ff4d4f";
+  if (ratio >= 0.35) return "#fa8c16";
+  if (ratio >= 0.12) return "#fadb14";
+  return "#4f86ff";
+}
+
 export default function Exposure() {
   const [searchTarget, setSearchTarget] = useState("");
-  const [riskFilter, setRiskFilter] = useState("all");
+  const [runtimeStatusFilter, setRuntimeStatusFilter] = useState("all");
+  const [chinaScopeFilter, setChinaScopeFilter] = useState("all");
+  const [versionStatusFilter, setVersionStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [mapScale, setMapScale] = useState(0.7);
+  const [mapScale, setMapScale] = useState(0.94);
+  const [chinaMapScale, setChinaMapScale] = useState(1);
+  const [chinaMapOffset, setChinaMapOffset] = useState({ x: -20, y: -120 });
+  const dragStateRef = useRef<{
+    dragging: boolean;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  }>({
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    originX: 0,
+    originY: 0,
+  });
   const mapCenterX = 400;
   const mapCenterY = 300;
   const mapOffsetY = -65;
@@ -129,7 +291,11 @@ export default function Exposure() {
     error: servicesError,
   } = useExposedServices({
     search: searchTarget,
-    riskLevel: riskFilter === "all" ? undefined : riskFilter,
+    runtimeStatus:
+      runtimeStatusFilter === "all" ? undefined : runtimeStatusFilter,
+    chinaScope: chinaScopeFilter === "all" ? undefined : chinaScopeFilter,
+    versionStatus:
+      versionStatusFilter === "all" ? undefined : versionStatusFilter,
     page: currentPage,
     limit: pageSize,
   });
@@ -143,22 +309,37 @@ export default function Exposure() {
     }
   }, [overviewError, geoError, portError, servicesError]);
 
+  const worldMaxCount = Math.max(
+    ...(geographicData?.world || []).map((item) => item.count),
+    1,
+  );
+  const chinaMaxCount = Math.max(
+    ...(geographicData?.china || []).map((item) => item.count),
+    1,
+  );
+
   const mapMarkers = (geographicData?.world || [])
     .filter((item) => item.lat && item.lng)
     .map((item) => ({
       ...item,
       countryZh: countryNameMap[item.country] || item.country,
       radius: Math.max(4, Math.min(16, Math.sqrt(item.count) / 18)),
-      color:
-        item.risk >= 3 ? "#ff4d4f" : item.risk >= 2.8 ? "#fa8c16" : "#1677ff",
+      color: getWorldDistributionColor(item.count, worldMaxCount),
     }));
+
+  const chinaMarkers = (geographicData?.china || []).map((item) => ({
+    ...item,
+    radius: Math.max(5, Math.min(18, Math.sqrt(item.count) / 6)),
+    color: getChinaDistributionColor(item.count, chinaMaxCount),
+    provinceZh: provinceNameMap[item.province] || item.province,
+    cityZh: cityNameMap[item.city] || item.city,
+  }));
 
   const geoDisplayData = (geographicData?.world || [])
     .slice(0, 5)
     .map((item) => ({
       country: countryNameMap[item.country] || item.country,
       count: item.count,
-      risk: item.risk,
     }));
 
   const portChartData = (portData?.common || []).slice(0, 8).map((item) => ({
@@ -168,32 +349,19 @@ export default function Exposure() {
     color: getPortColor(item.port),
   }));
 
-  const riskChartData = [
-    {
-      label: "Critical",
-      value: overview?.criticalExposures || 0,
-      valueWan: (overview?.criticalExposures || 0) / 10000,
-      color: "#ff4d4f",
-    },
-    {
-      label: "High",
-      value: overview?.highRiskExposures || 0,
-      valueWan: (overview?.highRiskExposures || 0) / 10000,
-      color: "#ff7a45",
-    },
-    {
-      label: "Medium",
-      value: overview?.mediumRiskExposures || 0,
-      valueWan: (overview?.mediumRiskExposures || 0) / 10000,
-      color: "#faad14",
-    },
-    {
-      label: "Low",
-      value: overview?.lowRiskExposures || 0,
-      valueWan: (overview?.lowRiskExposures || 0) / 10000,
-      color: "#52c41a",
-    },
-  ];
+  const provinceChartData = (geographicData?.provinceTop || []).map((item) => ({
+    label: provinceNameMap[item.province] || item.province,
+    value: item.count,
+  }));
+
+  const chinaCityTopData = (geographicData?.cityTop || []).map((item) => ({
+    city:
+      cityNameMap[item.city] ||
+      item.city ||
+      provinceNameMap[item.province] ||
+      item.province,
+    count: item.count,
+  }));
 
   const changeMapScale = (delta: number) => {
     setMapScale((current) =>
@@ -202,7 +370,45 @@ export default function Exposure() {
   };
 
   const resetMapScale = () => {
-    setMapScale(0.7);
+    setMapScale(0.94);
+  };
+
+  const changeChinaMapScale = (delta: number) => {
+    setChinaMapScale((current) =>
+      Math.min(2.4, Math.max(0.8, Number((current + delta).toFixed(2)))),
+    );
+  };
+
+  const resetChinaMapView = () => {
+    setChinaMapScale(1);
+    setChinaMapOffset({ x: -85, y: -10 });
+  };
+
+  const startChinaMapDrag = (clientX: number, clientY: number) => {
+    dragStateRef.current = {
+      dragging: true,
+      startX: clientX,
+      startY: clientY,
+      originX: chinaMapOffset.x,
+      originY: chinaMapOffset.y,
+    };
+  };
+
+  const moveChinaMapDrag = (clientX: number, clientY: number) => {
+    if (!dragStateRef.current.dragging) {
+      return;
+    }
+
+    const deltaX = clientX - dragStateRef.current.startX;
+    const deltaY = clientY - dragStateRef.current.startY;
+    setChinaMapOffset({
+      x: dragStateRef.current.originX + deltaX,
+      y: dragStateRef.current.originY + deltaY,
+    });
+  };
+
+  const stopChinaMapDrag = () => {
+    dragStateRef.current.dragging = false;
   };
 
   const portColumnConfig = {
@@ -261,28 +467,21 @@ export default function Exposure() {
     },
   };
 
-  const riskColumnConfig = {
-    data: riskChartData,
+  const provinceColumnConfig = {
+    data: provinceChartData,
     xField: "label",
-    yField: "valueWan",
+    yField: "value",
     height: 320,
     legend: false,
-    colorField: "label",
-    color: ({ label }: { label: string }) =>
-      riskChartData.find((item) => item.label === label)?.color || "#1677ff",
+    color: "#1677ff",
     columnStyle: {
       radius: [6, 6, 0, 0],
     },
     label: false,
-    meta: {
-      valueWan: {
-        formatter: (value: number) => formatAxisWan(value),
-      },
-    },
     axis: {
       x: {
         title: true,
-        titleText: "风险等级",
+        titleText: "省份",
         labelFontWeight: 700,
         labelFill: "#1677ff",
         titleFill: "#1677ff",
@@ -290,8 +489,8 @@ export default function Exposure() {
       },
       y: {
         title: true,
-        titleText: "数量（万）",
-        labelFormatter: (value: string) => formatAxisWan(value),
+        titleText: "暴露数量",
+        labelFormatter: (value: string) => Number(value).toLocaleString(),
         labelFontWeight: 700,
         labelFill: "#1677ff",
         titleFill: "#1677ff",
@@ -303,7 +502,7 @@ export default function Exposure() {
       customItems: (items: any[]) =>
         items.map((item) => ({
           ...item,
-          value: `${Number(item.data.value).toLocaleString()} / ${formatWan(Number(item.data.value))}`,
+          value: Number(item.data.value).toLocaleString(),
         })),
     },
   };
@@ -338,38 +537,62 @@ export default function Exposure() {
       key: "location",
       render: (record: any) => (
         <div>
-          <div>
-            {record.country}, {record.city}
-          </div>
+          <div>{record.country}</div>
           <div style={{ fontSize: 12, color: "#999" }}>{record.asn}</div>
         </div>
       ),
     },
     {
-      title: "风险等级",
-      dataIndex: "riskLevel",
-      key: "riskLevel",
-      render: (level: string) => (
-        <Tag color={getRiskColor(level)} icon={<WarningOutlined />}>
-          {level}
-        </Tag>
+      title: "运行状态",
+      dataIndex: "runtimeStatus",
+      key: "runtimeStatus",
+      render: (status: string) => (
+        <Tag color={getRuntimeStatusColor(status)}>{status}</Tag>
       ),
     },
     {
-      title: "漏洞",
-      dataIndex: "vulnerabilities",
-      key: "vulnerabilities",
-      render: (vulns: string[]) =>
-        vulns.length > 0 ? (
-          <div>
-            {vulns.map((vuln) => (
-              <Tag key={vuln} color="red">
-                {vuln}
-              </Tag>
-            ))}
-          </div>
+      title: "境内实例",
+      dataIndex: "isChinaInstance",
+      key: "isChinaInstance",
+      render: (_: unknown, record: any) =>
+        record.isChinaInstance ? (
+          <Space size={4} wrap>
+            <Tag color="cyan">中国境内</Tag>
+          </Space>
         ) : (
-          <Badge status="success" text="无已知漏洞" />
+          <Tag>海外</Tag>
+        ),
+    },
+    {
+      title: "境内位置",
+      key: "chinaLocation",
+      render: (_: unknown, record: any) =>
+        record.isChinaInstance ? (
+          <span>
+            {(() => {
+              const province =
+                provinceNameMap[record.province || ""] ||
+                record.province ||
+                "-";
+              const city = cityNameMap[record.cnCity] || record.cnCity || "";
+              return city && city !== province
+                ? `${province} / ${city}`
+                : province;
+            })()}
+          </span>
+        ) : (
+          "-"
+        ),
+    },
+    {
+      title: "版本号",
+      dataIndex: "serverVersion",
+      key: "serverVersion",
+      render: (serverVersion?: string | null) =>
+        serverVersion ? (
+          <Tag color="blue">{serverVersion}</Tag>
+        ) : (
+          <Badge status="default" text="未探测到" />
         ),
     },
     {
@@ -396,69 +619,99 @@ export default function Exposure() {
             <Card
               style={{ width: "100%", height: "100%" }}
               bodyStyle={{ height: "100%" }}
-            >
-              <div
-                style={{
-                  minHeight: 96,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
               >
-                <Statistic
-                  title="暴露服务总数"
-                  value={overview?.totalExposedServices || 0}
-                  formatter={(value) => Number(value).toLocaleString()}
-                  prefix={<GlobalOutlined />}
-                  valueStyle={{ color: "#1677ff" }}
-                />
-              </div>
-            </Card>
-          </Col>
-          <Col span={6} style={{ display: "flex" }}>
-            <Card
-              style={{ width: "100%", height: "100%" }}
-              bodyStyle={{ height: "100%" }}
-            >
-              <div
-                style={{
-                  minHeight: 96,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Statistic
-                  title="高危暴露"
-                  value={overview?.criticalExposures || 0}
-                  formatter={(value) => Number(value).toLocaleString()}
-                  valueStyle={{ color: "#ff4d4f" }}
-                />
-                <div style={{ marginTop: 8 }}>
-                  <Badge status="error" text="需要立即处理" />
+                <div
+                  style={{
+                    minHeight: 96,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
+                      暴露服务总数
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: "#1677ff" }}>
+                      {(overview?.totalExposedServices || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
+                      活跃实例数量
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: "#52c41a" }}>
+                      {(overview?.activeInstances || 0).toLocaleString()}
+                    </div>
+                  </div>
                 </div>
-              </div>
             </Card>
           </Col>
           <Col span={6} style={{ display: "flex" }}>
             <Card
               style={{ width: "100%", height: "100%" }}
               bodyStyle={{ height: "100%" }}
-            >
-              <div
-                style={{
-                  minHeight: 96,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
               >
-                <Statistic
-                  title="覆盖国家/地区"
-                  value={geographicData?.world?.length || 0}
-                  valueStyle={{ color: "#52c41a" }}
-                />
-              </div>
+                <div
+                  style={{
+                    minHeight: 96,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
+                      境内暴露总数
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: "#13a8a8" }}>
+                      {(overview?.chinaExposedServices || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
+                      境内活跃实例数量
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: "#08979c" }}>
+                      {(overview?.chinaActiveInstances || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+            </Card>
+          </Col>
+          <Col span={6} style={{ display: "flex" }}>
+            <Card
+              style={{ width: "100%", height: "100%" }}
+              bodyStyle={{ height: "100%" }}
+              >
+                <div
+                  style={{
+                    minHeight: 96,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
+                      覆盖国家/地区
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: "#722ed1" }}>
+                      {(geographicData?.world?.length || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
+                      涉及省市
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: "#531dab" }}>
+                      {(overview?.provinceCount || 0).toLocaleString()} / {(overview?.cityCount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
             </Card>
           </Col>
           <Col span={6} style={{ display: "flex" }}>
@@ -481,7 +734,7 @@ export default function Exposure() {
                       ? new Date(overview.lastScanTime).toLocaleString()
                       : "-"
                   }
-                  valueStyle={{ color: "#722ed1" }}
+                  valueStyle={{ color: "#722ed1", fontSize: 26, fontWeight: 600 }}
                 />
               </div>
             </Card>
@@ -489,7 +742,7 @@ export default function Exposure() {
         </Row>
       </Spin>
 
-      <Card title="🌍 全球暴露分布热力图" style={{ marginBottom: 16 }}>
+      <Card title="🌍 全球暴露实例分布图" style={{ marginBottom: 16 }}>
         <div
           style={{
             height: 430,
@@ -606,7 +859,7 @@ export default function Exposure() {
                         />
                       </circle>
                       <Tooltip
-                        title={`${point.countryZh}: ${point.count.toLocaleString()}，风险 ${point.risk}`}
+                        title={`${point.countryZh}: ${point.count.toLocaleString()}`}
                       >
                         <circle
                           r={point.radius}
@@ -636,9 +889,148 @@ export default function Exposure() {
                 <div style={{ fontSize: 12, color: "#666" }}>
                   {item.country}
                 </div>
-                <div style={{ fontSize: 12, color: "#ff4d4f" }}>
-                  风险系数: {item.risk}
+              </div>
+            </Col>
+          ))}
+        </Row>
+      </Card>
+
+      <Card title="🇨🇳 境内暴露实例分布图" style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            height: 420,
+            borderRadius: 12,
+            overflow: "hidden",
+            position: "relative",
+            background: "linear-gradient(180deg, #eef6ff 0%, #f8fbff 100%)",
+            border: "1px solid #d6e4ff",
+          }}
+          onMouseMove={(event) =>
+            moveChinaMapDrag(event.clientX, event.clientY)
+          }
+          onMouseUp={stopChinaMapDrag}
+          onMouseLeave={stopChinaMapDrag}
+        >
+          <div
+            style={{
+              position: "absolute",
+              right: 16,
+              top: 16,
+              zIndex: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <Button
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => changeChinaMapScale(0.12)}
+            />
+            <Button
+              size="small"
+              icon={<MinusOutlined />}
+              onClick={() => changeChinaMapScale(-0.12)}
+            />
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={resetChinaMapView}
+            />
+          </div>
+          <Spin spinning={geoLoading}>
+            <ComposableMap
+              projection="geoMercator"
+              projectionConfig={{ scale: 420, center: [104, 35] }}
+              style={{ width: "100%", height: "100%" }}
+            >
+              <g
+                transform={`translate(${chinaMapOffset.x} ${chinaMapOffset.y}) scale(${chinaMapScale})`}
+                style={{
+                  cursor: dragStateRef.current.dragging ? "grabbing" : "grab",
+                }}
+                onMouseDown={(event) =>
+                  startChinaMapDrag(event.clientX, event.clientY)
+                }
+              >
+                <Geographies geography={geoData}>
+                  {({ geographies }) =>
+                    geographies.map((geography) => (
+                      <Geography
+                        key={geography.rsmKey}
+                        geography={geography}
+                        style={{
+                          default: {
+                            fill: "#dbeafe",
+                            outline: "none",
+                            stroke: "#93c5fd",
+                            strokeWidth: 0.5,
+                          },
+                          hover: {
+                            fill: "#bfdbfe",
+                            outline: "none",
+                            stroke: "#60a5fa",
+                            strokeWidth: 0.8,
+                          },
+                          pressed: { fill: "#93c5fd", outline: "none" },
+                        }}
+                      />
+                    ))
+                  }
+                </Geographies>
+                {chinaMarkers.map((point) => (
+                  <Marker
+                    key={`${point.province}-${point.city}`}
+                    coordinates={[point.lng, point.lat]}
+                  >
+                    <g>
+                      <circle
+                        r={point.radius + 2}
+                        fill={point.color}
+                        opacity={0.22}
+                      >
+                        <animate
+                          attributeName="r"
+                          values={`${point.radius};${point.radius + 12}`}
+                          dur="2.6s"
+                          repeatCount="indefinite"
+                        />
+                        <animate
+                          attributeName="opacity"
+                          values="0.26;0"
+                          dur="2.6s"
+                          repeatCount="indefinite"
+                        />
+                      </circle>
+                      <Tooltip
+                        title={`${point.cityZh && point.cityZh !== point.provinceZh ? `${point.provinceZh} / ${point.cityZh}` : point.provinceZh}: ${point.count.toLocaleString()}`}
+                      >
+                        <circle
+                          r={point.radius}
+                          fill={point.color}
+                          fillOpacity={0.78}
+                          stroke="#fff"
+                          strokeWidth={1.5}
+                          style={{ cursor: "pointer" }}
+                        />
+                      </Tooltip>
+                    </g>
+                  </Marker>
+                ))}
+              </g>
+            </ComposableMap>
+          </Spin>
+        </div>
+        <Row gutter={16} style={{ marginTop: 16 }}>
+          {chinaCityTopData.map((item) => (
+            <Col key={item.city} flex="1 1 0">
+              <div style={{ textAlign: "center", padding: "8px 0" }}>
+                <div
+                  style={{ fontSize: 20, fontWeight: "bold", color: "#1677ff" }}
+                >
+                  {item.count.toLocaleString()}
                 </div>
+                <div style={{ fontSize: 12, color: "#666" }}>{item.city}</div>
               </div>
             </Col>
           ))}
@@ -654,9 +1046,9 @@ export default function Exposure() {
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="⚠️ 风险等级分布">
-            <Spin spinning={overviewLoading}>
-              <Column {...riskColumnConfig} />
+          <Card title="🏙️ 省份分布 Top 5">
+            <Spin spinning={geoLoading}>
+              <Column {...provinceColumnConfig} />
             </Spin>
           </Card>
         </Col>
@@ -676,19 +1068,44 @@ export default function Exposure() {
               defaultValue={searchTarget}
             />
             <Select
-              placeholder="筛选风险等级"
+              placeholder="筛选运行状态"
               style={{ width: 150 }}
-              value={riskFilter}
+              value={runtimeStatusFilter}
               onChange={(value) => {
-                setRiskFilter(value);
+                setRuntimeStatusFilter(value);
                 setCurrentPage(1);
               }}
             >
-              <Option value="all">全部风险</Option>
-              <Option value="Critical">Critical</Option>
-              <Option value="High">High</Option>
-              <Option value="Medium">Medium</Option>
-              <Option value="Low">Low</Option>
+              <Option value="all">全部状态</Option>
+              <Option value="Active">Active</Option>
+              <Option value="Inactive">Inactive</Option>
+              <Option value="Unknown">Unknown</Option>
+            </Select>
+            <Select
+              placeholder="境内外分布"
+              style={{ width: 150 }}
+              value={chinaScopeFilter}
+              onChange={(value) => {
+                setChinaScopeFilter(value);
+                setCurrentPage(1);
+              }}
+            >
+              <Option value="all">全部范围</Option>
+              <Option value="china">境内实例</Option>
+              <Option value="overseas">境外实例</Option>
+            </Select>
+            <Select
+              placeholder="版本信息"
+              style={{ width: 150 }}
+              value={versionStatusFilter}
+              onChange={(value) => {
+                setVersionStatusFilter(value);
+                setCurrentPage(1);
+              }}
+            >
+              <Option value="all">全部版本</Option>
+              <Option value="detected">已探测版本</Option>
+              <Option value="undetected">未探测版本</Option>
             </Select>
             <Button icon={<SearchOutlined />}>高级搜索</Button>
           </Space>
@@ -717,7 +1134,7 @@ export default function Exposure() {
                 setPageSize(size);
               },
             }}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1300 }}
             options={{
               density: false,
               fullScreen: true,

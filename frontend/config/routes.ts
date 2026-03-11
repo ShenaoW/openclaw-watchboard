@@ -30,19 +30,24 @@ export default [
   },
   {
     path: '/risks',
-    redirect: '/risks/top10',
-  },
-  {
-    path: '/risks/top10',
     name: 'risks',
     icon: 'warning',
-    component: './Risks',
-  },
-  {
-    path: '/risks/vulnerabilities',
-    name: 'risks.vulnerabilities',
-    hideInMenu: true,
-    component: './Risks/Vulnerabilities',
+    routes: [
+      {
+        path: '/risks',
+        redirect: '/risks/top10',
+      },
+      {
+        path: '/risks/top10',
+        name: 'top10',
+        component: './Risks',
+      },
+      {
+        path: '/risks/vulnerabilities',
+        name: 'vulnerabilities',
+        component: './Risks/Vulnerabilities',
+      },
+    ],
   },
   {
     path: '/exposure',

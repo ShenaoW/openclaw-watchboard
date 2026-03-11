@@ -72,8 +72,25 @@ class ExposureDatabaseService {
       `,
     );
 
+    const [chinaStats] = await this.query<any>(
+      `
+      SELECT
+        COUNT(*) as total_china_instances,
+        SUM(CASE WHEN runtime_status = 'Active' THEN 1 ELSE 0 END) as active_china_instances,
+        COUNT(DISTINCT CASE WHEN province IS NOT NULL AND trim(province) != '' THEN province END) as province_count,
+        COUNT(DISTINCT CASE WHEN cn_city IS NOT NULL AND trim(cn_city) != '' THEN cn_city END) as city_count
+      FROM exposure_instances
+      WHERE is_china_instance = 'Yes'
+      `,
+    );
+
     return {
       totalExposedServices: summary.total_instances,
+      activeInstances: summary.active_instances || 0,
+      chinaExposedServices: chinaStats?.total_china_instances || 0,
+      chinaActiveInstances: chinaStats?.active_china_instances || 0,
+      provinceCount: chinaStats?.province_count || 0,
+      cityCount: chinaStats?.city_count || 0,
       criticalExposures: summary.critical_count,
       highRiskExposures: summary.high_count,
       mediumRiskExposures: summary.medium_count,
@@ -82,12 +99,6 @@ class ExposureDatabaseService {
       topCountries: topCountries.map((country) => ({
         country: country.country_name,
         count: country.count,
-        risk:
-          country.critical_count > 0
-            ? 'high'
-            : country.high_count > country.low_count
-              ? 'medium'
-              : 'low',
       })),
       topPorts: topPorts.map((port) => ({
         port: port.port,
@@ -100,7 +111,9 @@ class ExposureDatabaseService {
 
   async getServices(filters: {
     status?: string;
-    riskLevel?: string;
+    runtimeStatus?: string;
+    chinaScope?: string;
+    versionStatus?: string;
     country?: string;
     isp?: string;
     credentialsLeaked?: string;
@@ -116,9 +129,25 @@ class ExposureDatabaseService {
       params.push(filters.status);
     }
 
-    if (filters.riskLevel) {
-      where.push('risk_level = ?');
-      params.push(filters.riskLevel);
+    if (filters.runtimeStatus) {
+      where.push('runtime_status = ?');
+      params.push(filters.runtimeStatus);
+    }
+
+    if (filters.chinaScope === 'china') {
+      where.push(`is_china_instance = 'Yes'`);
+    }
+
+    if (filters.chinaScope === 'overseas') {
+      where.push(`(is_china_instance IS NULL OR is_china_instance != 'Yes')`);
+    }
+
+    if (filters.versionStatus === 'detected') {
+      where.push(`server_version IS NOT NULL AND trim(server_version) != ''`);
+    }
+
+    if (filters.versionStatus === 'undetected') {
+      where.push(`(server_version IS NULL OR trim(server_version) = '')`);
     }
 
     if (filters.country) {
@@ -186,8 +215,11 @@ class ExposureDatabaseService {
         asn: row.asn,
         organization: row.organization,
         isp: row.isp,
-        riskLevel: row.risk_level,
-        vulnerabilities: this.parseJsonArray(row.cve_list).slice(0, 5),
+        runtimeStatus: row.runtime_status || 'Unknown',
+        serverVersion: row.server_version || null,
+        isChinaInstance: row.is_china_instance === 'Yes',
+        province: row.province || null,
+        cnCity: row.cn_city || null,
         lastSeen: row.last_seen,
         firstSeen: row.first_seen,
         status: row.status,
@@ -217,6 +249,16 @@ class ExposureDatabaseService {
       `,
     );
 
+    const provinces = await this.query<any>(
+      `
+      SELECT province, city, count
+      FROM exposure_province_stats
+      WHERE province IS NOT NULL AND province != ''
+      ORDER BY count DESC
+      LIMIT 50
+      `,
+    );
+
     const coordinates: Record<string, { code: string; lat: number; lng: number }> = {
       'China mainland': { code: 'CHN', lat: 35.8617, lng: 104.1954 },
       'United States': { code: 'USA', lat: 37.0902, lng: -95.7129 },
@@ -230,18 +272,51 @@ class ExposureDatabaseService {
       Netherlands: { code: 'NLD', lat: 52.1326, lng: 5.2913 },
     };
 
+    const provinceCoordinates: Record<string, { lat: number; lng: number }> = {
+      Beijing: { lat: 39.9042, lng: 116.4074 },
+      Shanghai: { lat: 31.2304, lng: 121.4737 },
+      Tianjin: { lat: 39.3434, lng: 117.3616 },
+      Chongqing: { lat: 29.4316, lng: 106.9123 },
+      Guangdong: { lat: 23.379, lng: 113.7633 },
+      Zhejiang: { lat: 29.1832, lng: 120.0934 },
+      Jiangsu: { lat: 32.9711, lng: 119.455 },
+      Shandong: { lat: 36.6683, lng: 117.0204 },
+      Sichuan: { lat: 30.6517, lng: 104.0759 },
+      Hubei: { lat: 30.9756, lng: 112.2707 },
+      Hunan: { lat: 27.6104, lng: 111.7088 },
+      Henan: { lat: 34.7657, lng: 113.7532 },
+      Hebei: { lat: 38.0428, lng: 114.5149 },
+      Fujian: { lat: 26.0998, lng: 119.2965 },
+      Anhui: { lat: 31.8612, lng: 117.2857 },
+      Jiangxi: { lat: 28.6765, lng: 115.8922 },
+      Shaanxi: { lat: 34.3416, lng: 108.9398 },
+      Liaoning: { lat: 41.8057, lng: 123.4315 },
+      Jilin: { lat: 43.8171, lng: 125.3235 },
+      Heilongjiang: { lat: 45.8038, lng: 126.5349 },
+      Guangxi: { lat: 22.815, lng: 108.3275 },
+      Yunnan: { lat: 25.0458, lng: 102.7103 },
+      Guizhou: { lat: 26.647, lng: 106.6302 },
+      Gansu: { lat: 36.0611, lng: 103.8343 },
+      Shanxi: { lat: 37.8706, lng: 112.5489 },
+      InnerMongolia: { lat: 40.8174, lng: 111.7652 },
+      Xinjiang: { lat: 43.8256, lng: 87.6168 },
+      Tibet: { lat: 29.652, lng: 91.1721 },
+      Qinghai: { lat: 36.6171, lng: 101.7782 },
+      Ningxia: { lat: 38.4872, lng: 106.2309 },
+      Hainan: { lat: 20.044, lng: 110.1983 },
+      HongKong: { lat: 22.3193, lng: 114.1694 },
+      Macau: { lat: 22.1987, lng: 113.5439 },
+      Taiwan: { lat: 25.033, lng: 121.5654 },
+    };
+
     return {
       world: world.map((row) => {
         const location = coordinates[row.country_name] || { code: 'UNK', lat: 0, lng: 0 };
-        const riskBase =
-          row.critical_count * 4 + row.high_count * 3 + row.medium_count * 2 + row.low_count;
-        const risk = row.count > 0 ? Number((riskBase / row.count).toFixed(1)) : 0;
 
         return {
           country: row.country_name,
           code: location.code,
           count: row.count,
-          risk,
           lat: location.lat,
           lng: location.lng,
         };
@@ -261,6 +336,37 @@ class ExposureDatabaseService {
           };
         })
         .filter(Boolean),
+      china: provinces
+        .map((row) => {
+          const key = (row.province || '').replace(/\s+/g, '');
+          const location = provinceCoordinates[key] || provinceCoordinates[row.province] || null;
+          if (!location) {
+            return null;
+          }
+
+          return {
+            province: row.province,
+            city: row.city,
+            count: row.count,
+            lat: location.lat,
+            lng: location.lng,
+          };
+        })
+        .filter(Boolean),
+      provinceTop: provinces.slice(0, 5).map((row) => ({
+        province: row.province,
+        city: row.city,
+        count: row.count,
+      })),
+      cityTop: provinces
+        .slice()
+        .sort((a, b) => b.count - a.count)
+        .map((row) => ({
+          province: row.province,
+          city: row.city,
+          count: row.count,
+        }))
+        .slice(0, 5),
     };
   }
 
@@ -376,7 +482,11 @@ class ExposureDatabaseService {
         service: row.service,
         banner: row.assistant_name ? `OpenClaw Assistant: ${row.assistant_name}` : 'OpenClaw service',
         status: row.status,
-        riskLevel: row.risk_level,
+        runtimeStatus: row.runtime_status || 'Unknown',
+        serverVersion: row.server_version || null,
+        isChinaInstance: row.is_china_instance === 'Yes',
+        province: row.province || null,
+        cnCity: row.cn_city || null,
       })),
     };
   }

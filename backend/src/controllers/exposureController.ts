@@ -15,7 +15,9 @@ export class ExposureController {
     try {
       const result = await exposureDatabaseService.getServices({
         status: req.query.status as string | undefined,
-        riskLevel: req.query.riskLevel as string | undefined,
+        runtimeStatus: req.query.runtimeStatus as string | undefined,
+        chinaScope: req.query.chinaScope as string | undefined,
+        versionStatus: req.query.versionStatus as string | undefined,
         country: req.query.country as string | undefined,
         isp: req.query.isp as string | undefined,
         credentialsLeaked: req.query.credentials_leaked as string | undefined,

@@ -142,6 +142,11 @@ def setup_exposure_database():
             cve_count INTEGER DEFAULT 0,
             scan_time TEXT,
             domains TEXT,
+            runtime_status TEXT,
+            server_version TEXT,
+            is_china_instance TEXT,
+            province TEXT,
+            cn_city TEXT,
             risk_level TEXT,
             risk_score INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -155,6 +160,7 @@ def setup_exposure_database():
         CREATE TABLE IF NOT EXISTS exposure_summary (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             total_instances INTEGER,
+            active_instances INTEGER,
             clean_count INTEGER,
             leaked_count INTEGER,
             credentials_yes INTEGER,
@@ -213,6 +219,38 @@ def setup_exposure_database():
         '''
     )
 
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS exposure_province_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            province TEXT,
+            city TEXT,
+            count INTEGER,
+            generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        '''
+    )
+
+    existing_exposure_instances = {
+        row[1] for row in cursor.execute("PRAGMA table_info(exposure_instances)").fetchall()
+    }
+    if "runtime_status" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN runtime_status TEXT")
+    if "server_version" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN server_version TEXT")
+    if "is_china_instance" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN is_china_instance TEXT")
+    if "province" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN province TEXT")
+    if "cn_city" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN cn_city TEXT")
+
+    existing_exposure_summary = {
+        row[1] for row in cursor.execute("PRAGMA table_info(exposure_summary)").fetchall()
+    }
+    if "active_instances" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN active_instances INTEGER")
+
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_status ON exposure_instances(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_country ON exposure_instances(country_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_risk ON exposure_instances(risk_level)")
@@ -229,9 +267,6 @@ def setup_risks_database():
     """创建 risks 数据库表结构"""
     conn = sqlite3.connect(RISKS_DB_PATH)
     cursor = conn.cursor()
-
-    cursor.execute("DROP TABLE IF EXISTS vulnerabilities")
-    cursor.execute("DROP TABLE IF EXISTS vulnerability_summary")
 
     cursor.execute(
         '''

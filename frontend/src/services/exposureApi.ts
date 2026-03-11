@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 
 export interface ExposureStats {
   totalExposedServices: number;
+  activeInstances: number;
+  chinaExposedServices: number;
+  chinaActiveInstances: number;
+  provinceCount: number;
+  cityCount: number;
   criticalExposures: number;
   highRiskExposures: number;
   mediumRiskExposures: number;
@@ -10,7 +15,6 @@ export interface ExposureStats {
   topCountries: Array<{
     country: string;
     count: number;
-    risk: string;
   }>;
   topPorts: Array<{
     port: number;
@@ -32,8 +36,11 @@ export interface ExposedService {
   asn: string;
   organization?: string;
   isp?: string;
-  riskLevel: string;
-  vulnerabilities: string[];
+  runtimeStatus: string;
+  serverVersion?: string | null;
+  isChinaInstance?: boolean;
+  province?: string | null;
+  cnCity?: string | null;
   lastSeen: string;
   firstSeen?: string;
   status?: string;
@@ -50,7 +57,6 @@ export interface GeographicData {
     country: string;
     code: string;
     count: number;
-    risk: number;
     lat: number;
     lng: number;
   }>;
@@ -58,6 +64,23 @@ export interface GeographicData {
     lat: number;
     lng: number;
     intensity: number;
+  }>;
+  china: Array<{
+    province: string;
+    city: string;
+    count: number;
+    lat: number;
+    lng: number;
+  }>;
+  provinceTop: Array<{
+    province: string;
+    city: string;
+    count: number;
+  }>;
+  cityTop: Array<{
+    province: string;
+    city: string;
+    count: number;
   }>;
 }
 
@@ -100,7 +123,9 @@ export const exposureAPI = {
   // 获取暴露服务列表
   async getServices(filters?: {
     status?: string;
-    riskLevel?: string;
+    runtimeStatus?: string;
+    chinaScope?: string;
+    versionStatus?: string;
     country?: string;
     isp?: string;
     credentials_leaked?: string;
@@ -251,7 +276,9 @@ export const useExposureOverview = () => {
 // Custom hook for exposed services list
 export const useExposedServices = (filters?: {
   status?: string;
-  riskLevel?: string;
+  runtimeStatus?: string;
+  chinaScope?: string;
+  versionStatus?: string;
   country?: string;
   isp?: string;
   credentials_leaked?: string;

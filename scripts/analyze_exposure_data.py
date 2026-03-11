@@ -13,7 +13,11 @@ from typing import Dict, List, Optional, Tuple
 
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
-CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_merged.csv"
+DEFAULT_CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_deduped.csv"
+LEGACY_CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_merged.csv"
+ALIVE_CSV_FILE = DATA_DIR / "explosure" / "endpoint_alive.csv"
+CONFIG_JSON_FILE = DATA_DIR / "explosure" / "endpoint_alive_configs.json"
+CN_CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_cn.csv"
 DB_PATH = DATA_DIR / "exposure.db"
 
 
@@ -72,9 +76,111 @@ def service_name_for_port(port: int) -> str:
     return SERVICE_MAP.get(port, "OpenClaw")
 
 
+def get_first_present(row: Dict[str, str], *keys: str) -> str:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def resolve_csv_path() -> Path:
+    if DEFAULT_CSV_FILE.exists():
+        return DEFAULT_CSV_FILE
+    return LEGACY_CSV_FILE
+
+
+def load_runtime_probe_map() -> Dict[str, Dict[str, str]]:
+    if not ALIVE_CSV_FILE.exists():
+        return {}
+
+    runtime_map: Dict[str, Dict[str, str]] = {}
+    with ALIVE_CSV_FILE.open("r", encoding="utf-8-sig") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            ip_port = (row.get("ip_port") or "").strip()
+            if not ip_port:
+                continue
+
+            is_active = (row.get("health") or "").strip() == "200"
+
+            runtime_map[ip_port] = {
+                "runtime_status": "Active" if is_active else "Inactive",
+                "health": (row.get("health") or "").strip(),
+            }
+
+    return runtime_map
+
+
+def load_server_versions() -> Dict[str, str]:
+    if not CONFIG_JSON_FILE.exists():
+        return {}
+
+    with CONFIG_JSON_FILE.open("r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    version_map: Dict[str, str] = {}
+    if not isinstance(data, dict):
+        return version_map
+
+    for ip_port, payload in data.items():
+        if not isinstance(payload, dict):
+            continue
+        server_version = payload.get("serverVersion")
+        if isinstance(server_version, str) and server_version.strip():
+            version_map[ip_port] = server_version.strip()
+
+    return version_map
+
+
+def load_china_instance_map() -> Dict[str, Dict[str, str]]:
+    if not CN_CSV_FILE.exists():
+        return {}
+
+    cn_map: Dict[str, Dict[str, str]] = {}
+    with CN_CSV_FILE.open("r", encoding="utf-8-sig") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            ip_port = (row.get("ip_port") or "").strip()
+            if not ip_port:
+                continue
+            cn_map[ip_port] = {
+                "is_china_instance": "Yes",
+                "province": (row.get("region") or "").strip(),
+                "cn_city": (row.get("city") or "").strip(),
+            }
+
+    return cn_map
+
+
+def normalize_row(row: Dict[str, str]) -> Dict[str, str]:
+    status_value = get_first_present(row, "status", "has_leaked_creds")
+    normalized_status = "Leaked" if status_value.lower() == "leaked" else "Clean" if status_value.lower() == "clean" else status_value
+
+    return {
+        "ip_port": get_first_present(row, "ip_port"),
+        "assistant_name": get_first_present(row, "assistant_name"),
+        "country": get_first_present(row, "country"),
+        "authenticated": get_first_present(row, "authenticated", "auth_required"),
+        "active": get_first_present(row, "active", "is_active"),
+        "status": normalized_status or "Unknown",
+        "asn": get_first_present(row, "asn"),
+        "organization": get_first_present(row, "organization", "org"),
+        "isp": get_first_present(row, "isp", "asn_name"),
+        "first_seen": get_first_present(row, "first_seen"),
+        "last_seen": get_first_present(row, "last_seen"),
+        "credentials_leaked": get_first_present(row, "credentials_leaked", "has_leaked_creds"),
+        "has_mcp": get_first_present(row, "has_mcp"),
+        "apt_groups": get_first_present(row, "apt_groups", "asi_threat_actors"),
+        "cve_list": get_first_present(row, "cve_list", "asi_cves"),
+        "scan_time": get_first_present(row, "scan_time", "asi_enriched_at"),
+        "domains": get_first_present(row, "domains", "asi_domains"),
+    }
+
+
 def compute_risk_level(row: Dict[str, str], port: int, cve_count: int, apt_count: int) -> Tuple[str, int]:
     status = (row.get("status") or "").strip()
-    credentials_leaked = normalize_flag(row.get("credentials_leaked", ""), {"Yes", "True"}, {"No", "False", ""}, "Unknown")
+    credentials_leaked = normalize_flag(row.get("credentials_leaked", ""), {"Yes", "True", "Leaked"}, {"No", "False", "", "Clean"}, "Unknown")
 
     if status == "Leaked":
         return "Critical", 95
@@ -92,8 +198,13 @@ def compute_risk_level(row: Dict[str, str], port: int, cve_count: int, apt_count
 
 
 def analyze_exposure_data():
-    if not CSV_FILE.exists():
-        print(f"❌ 暴露数据文件不存在: {CSV_FILE}")
+    csv_file = resolve_csv_path()
+    runtime_probe_map = load_runtime_probe_map()
+    version_map = load_server_versions()
+    china_instance_map = load_china_instance_map()
+
+    if not csv_file.exists():
+        print(f"❌ 暴露数据文件不存在: {csv_file}")
         return
 
     conn = sqlite3.connect(DB_PATH)
@@ -104,8 +215,10 @@ def analyze_exposure_data():
     cursor.execute("DELETE FROM exposure_country_stats")
     cursor.execute("DELETE FROM exposure_isp_stats")
     cursor.execute("DELETE FROM exposure_port_stats")
+    cursor.execute("DELETE FROM exposure_province_stats")
 
     total = 0
+    active_instances = 0
     risk_counter = Counter()
     status_counter = Counter()
     credentials_counter = Counter()
@@ -114,13 +227,16 @@ def analyze_exposure_data():
     country_leaked_counter = Counter()
     isp_counter = Counter()
     port_counter = Counter()
+    province_counter = Counter()
+    province_city_counter = defaultdict(Counter)
     last_scan_candidates: List[str] = []
 
-    print("🔍 开始分析 exposure 数据...")
+    print(f"🔍 开始分析 exposure 数据: {csv_file}")
 
-    with CSV_FILE.open("r", encoding="utf-8") as file:
+    with csv_file.open("r", encoding="utf-8-sig") as file:
         reader = csv.DictReader(file)
-        for row in reader:
+        for raw_row in reader:
+            row = normalize_row(raw_row)
             ip_port = (row.get("ip_port") or "").strip()
             if ":" not in ip_port:
                 continue
@@ -169,6 +285,14 @@ def analyze_exposure_data():
             )
 
             risk_level, risk_score = compute_risk_level(row, port, len(cve_list), len(apt_groups))
+            runtime_status = runtime_probe_map.get(ip_port, {}).get("runtime_status", "Unknown")
+            server_version = version_map.get(ip_port)
+            china_instance = china_instance_map.get(ip_port, {})
+            is_china_instance = china_instance.get("is_china_instance", "No")
+            province = china_instance.get("province", "")
+            cn_city = china_instance.get("cn_city", "")
+            if runtime_status == "Active":
+                active_instances += 1
 
             cursor.execute(
                 """
@@ -176,8 +300,9 @@ def analyze_exposure_data():
                     ip_port, ip, port, service, assistant_name, country, country_name,
                     authenticated, active, status, asn, organization, isp, first_seen, last_seen,
                     credentials_leaked, has_mcp, apt_groups, apt_group_count, cve_list, cve_count,
-                    scan_time, domains, risk_level, risk_score, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    scan_time, domains, runtime_status, server_version, is_china_instance, province, cn_city,
+                    risk_level, risk_score, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
                 (
                     ip_port,
@@ -203,6 +328,11 @@ def analyze_exposure_data():
                     len(cve_list),
                     scan_time,
                     json.dumps(domains, ensure_ascii=False),
+                    runtime_status,
+                    server_version,
+                    is_china_instance,
+                    province,
+                    cn_city,
                     risk_level,
                     risk_score,
                 ),
@@ -218,6 +348,9 @@ def analyze_exposure_data():
             if row.get("isp"):
                 isp_counter[row["isp"].strip()] += 1
             port_counter[port] += 1
+            if is_china_instance == "Yes" and province:
+                province_counter[province] += 1
+                province_city_counter[province][cn_city or province] += 1
 
             if total % 10000 == 0:
                 print(f"✅ 已处理 {total} 条暴露记录...")
@@ -228,13 +361,14 @@ def analyze_exposure_data():
     cursor.execute(
         """
         INSERT INTO exposure_summary (
-            total_instances, clean_count, leaked_count, credentials_yes, credentials_no,
+            total_instances, active_instances, clean_count, leaked_count, credentials_yes, credentials_no,
             credentials_unknown, critical_count, high_count, medium_count, low_count,
             country_count, last_scan_time
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             total_instances,
+            active_instances,
             status_counter["Clean"],
             status_counter["Leaked"],
             credentials_counter["Yes"],
@@ -283,11 +417,19 @@ def analyze_exposure_data():
             (port, service_name_for_port(port), count, percentage, risk),
         )
 
+    for province, count in province_counter.most_common():
+        top_city = province_city_counter[province].most_common(1)[0][0] if province_city_counter[province] else province
+        cursor.execute(
+            "INSERT INTO exposure_province_stats (province, city, count) VALUES (?, ?, ?)",
+            (province, top_city, count),
+        )
+
     conn.commit()
     conn.close()
 
     print("🎉 Exposure 数据分析完成:")
     print(f"   总计: {total_instances} 条")
+    print(f"   Active: {active_instances}")
     print(f"   Critical: {risk_counter['Critical']}")
     print(f"   High: {risk_counter['High']}")
     print(f"   Medium: {risk_counter['Medium']}")

@@ -2,10 +2,8 @@ import { PageContainer } from "@ant-design/pro-components";
 import { Card, Col, Empty, Progress, Row, Space, Spin, Tag, Typography, message } from "antd";
 import { Column } from "@ant-design/charts";
 import {
-  BugOutlined,
   GlobalOutlined,
   SafetyCertificateOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
 import { useExposureOverview } from "../../services/exposureApi";
@@ -124,10 +122,7 @@ export default function Dashboard() {
                     {vulnerabilities.length.toLocaleString()}
                   </div>
                 </div>
-                <Space size={8} wrap>
-                  <BugOutlined style={{ color: "#1677ff" }} />
-                  <Text>数据源: openclaw_vuls.csv</Text>
-                </Space>
+                <Text type="secondary">已同步到本地漏洞数据库</Text>
               </div>
             </Card>
           </Col>
@@ -155,7 +150,7 @@ export default function Dashboard() {
                 </div>
                 <Space size={8} wrap>
                   <GlobalOutlined style={{ color: "#1677ff" }} />
-                  <Text>高危暴露 {(overview?.criticalExposures || 0).toLocaleString()}</Text>
+                  <Text>活跃实例 {(overview?.activeInstances || 0).toLocaleString()}</Text>
                 </Space>
               </div>
             </Card>
@@ -247,16 +242,14 @@ export default function Dashboard() {
                     const percent = topCountries[0]
                       ? Math.round((country.count / topCountries[0].count) * 100)
                       : 0;
-                    const color =
-                      country.risk === "high" ? "#ff4d4f" : country.risk === "medium" ? "#fa8c16" : "#52c41a";
 
                     return (
                       <div key={country.country} style={{ marginBottom: 18 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                           <Text strong>{countryNameMap[country.country] || country.country}</Text>
-                          <Text style={{ color }}>{country.count.toLocaleString()}</Text>
+                          <Text style={{ color: "#1677ff" }}>{country.count.toLocaleString()}</Text>
                         </div>
-                        <Progress percent={percent} strokeColor={color} showInfo={false} />
+                        <Progress percent={percent} strokeColor="#1677ff" showInfo={false} />
                       </div>
                     );
                   })}
