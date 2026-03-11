@@ -1,215 +1,344 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is for coding agents working in `/Users/shawn/Desktop/openclaw-watchboard`.
 
-## Project Overview
+The goal is not generic repo onboarding. The goal is to preserve the current project-specific context so another agent can safely continue work without prior chat history.
 
-OpenClaw Watchboard is a comprehensive security monitoring dashboard for tracking OpenClaw-related security risks. The application consists of three main monitoring components:
+## What This Project Is
 
-1. **OpenClaw Top 10 Risks** - Real-time display of critical security vulnerabilities and threats
-2. **Public Exposure Analysis** - Visualization dashboard for internet-exposed OpenClaw services
-3. **Skill Poisoning Detection** - Management system for trusted Skills and malicious Skill detection
+OpenClaw Watchboard is a monorepo security dashboard for four current sections:
 
-## Architecture
+1. `OpenClaw安全治理总览`
+2. `OpenClaw风险漏洞追踪`
+3. `OpenClaw公网暴露监测`
+4. `Skill生态后门投毒治理`
+5. `OpenClaw部署安全检测`
 
-This is a **monorepo** with TypeScript throughout:
+The frontend is the user-facing deliverable. Many pages have been heavily customized for the current stakeholder and should not be “simplified back” to boilerplate Ant Design Pro layouts.
 
-```
+## Monorepo Layout
+
+```text
 openclaw-watchboard/
-├── frontend/          # React 19 + Ant Design Pro application
-├── backend/           # Node.js Express API server
-├── shared/           # Shared TypeScript types and utilities
-├── docs/             # Project documentation
-└── package.json      # Monorepo workspace configuration
+├── frontend/                 # Umi + React + Ant Design Pro
+├── backend/                  # Express + TypeScript
+├── shared/                   # shared TS types
+├── scripts/                  # local data refresh scripts
+├── data/                     # CSV inputs + SQLite db files
+├── tools/openclaw-scan/      # standalone deployment security CLI
+└── package.json
 ```
 
-### Technology Stack
+## Reality, Not The Original Template
 
-**Frontend:**
-- React 19 with TypeScript
-- Ant Design Pro (enterprise UI framework)
-- UmiJS application framework
-- Ant Design Charts for data visualization
-- Development server runs on port 3000
+Some older repo text still sounds generic. Do not trust generic statements over the current implementation.
 
-**Backend:**
-- Node.js + Express + TypeScript
-- SQLite database with TypeORM
-- RESTful API design
-- Node-cron for scheduled tasks
-- Development server runs on port 3001
+Current project reality:
 
-**Shared:**
-- TypeScript type definitions
-- Common constants and utilities
-- API interfaces and data models
+- SQLite files under `data/` are the actual production data source.
+- The repo intentionally does **not** commit the `.db` files.
+- The system is deployed to a Tencent Cloud Ubuntu host and served via Nginx + PM2.
+- The user wants practical data refresh + sync workflows, not abstract deployment docs.
+- The frontend menu labels and page wording have been customized to Chinese stakeholder-facing names.
 
-## Development Commands
+## Current High-Value Commands
 
-### Initial Setup
+### Install / Build
+
 ```bash
-# Install all dependencies across the monorepo
 npm run install:all
-
-# Copy and configure environment variables
-cp .env.example .env
-```
-
-### Development
-```bash
-# Start both frontend and backend in development mode
-npm run dev
-
-# Start services individually
-npm run dev:frontend    # React dev server (port 3000)
-npm run dev:backend     # Express API server (port 3001)
-```
-
-### Building
-```bash
-# Build all components
 npm run build
-
-# Build individual components
 npm run build:frontend
 npm run build:backend
 npm run build:shared
 ```
 
-### Testing & Quality
+### Database Refresh
+
+These are important and should be preserved:
+
 ```bash
-npm test               # Run all tests
-npm run lint          # ESLint across all packages
-npm run lint:fix      # Auto-fix linting issues
+npm run refresh:databases
+npm run refresh:skills-db
+npm run refresh:risks-db
+npm run refresh:exposure-db
 ```
 
-### Production
+Meaning:
+
+- `refresh:databases`
+  - runs the full analysis pipeline through `scripts/run_analysis.py`
+- `refresh:skills-db`
+  - rebuilds skills-related data
+- `refresh:risks-db`
+  - rebuilds vulnerability/risk data
+- `refresh:exposure-db`
+  - rebuilds exposure data only
+
+### Remote Sync
+
 ```bash
-npm start             # Start production server
+npm run sync:databases
 ```
 
-## Core API Routes
+This syncs all `.db` files under `data/` to the Tencent Cloud server and restarts the backend.
 
-The backend implements three main API route groups:
+The sync script is:
 
-### Risk Management (`/api/risks`)
-- `GET /api/risks/top10` - Fetch OpenClaw Top 10 security risks
-- `GET /api/risks/:riskId` - Get detailed risk information
-- `GET /api/risks/stats/summary` - Risk statistics overview
-- `GET /api/risks/trends/:timeRange` - Risk trend analysis
-- `POST /api/risks/refresh` - Trigger risk data refresh
+- [`scripts/sync_databases_to_tencent.sh`](/Users/shawn/Desktop/openclaw-watchboard/scripts/sync_databases_to_tencent.sh)
 
-### Exposure Analysis (`/api/exposure`)
-- `GET /api/exposure/overview` - Public exposure summary dashboard
-- `GET /api/exposure/services` - List of exposed services
-- `GET /api/exposure/geography` - Geographic distribution data
-- `GET /api/exposure/ports` - Port distribution statistics
-- `GET /api/exposure/trends` - Exposure trends over time
-- `POST /api/exposure/scan` - Initiate security scanning
+It is expected to:
 
-### Skill Management (`/api/skills`)
-- `GET /api/skills/trusted` - Verified trusted Skill library
-- `GET /api/skills/suspicious` - Detected suspicious/malicious Skills
-- `GET /api/skills/analysis/:skillId` - Detailed Skill security analysis
-- `POST /api/skills/trusted` - Add Skill to trusted list
-- `POST /api/skills/report` - Report suspicious Skill
-- `POST /api/skills/verify` - Initiate Skill security verification
+- upload all local `data/*.db`
+- backup previous remote DBs
+- restart `pm2` app `openclaw-backend`
 
-## Key Components & Architecture Patterns
+### Deployment Security Tool
 
-### Backend Controllers
-Located in `backend/src/controllers/`:
-- `RiskController` - Manages security risk data and analysis
-- `ExposureController` - Handles public exposure monitoring and scanning
-- `SkillController` - Manages Skill verification and threat detection
+```bash
+npm run scan:deployment-security
+npm run package:openclaw-scan
+```
 
-### Frontend Pages (Ant Design Pro)
-The frontend uses Ant Design Pro's layout system with three main dashboard sections:
-1. Risk monitoring page with charts and detailed risk analysis
-2. Geographic visualization page for exposure mapping
-3. Skill management interface with trust/report functionality
+`scan:deployment-security` runs:
 
-### Shared Types
-`shared/src/types/index.ts` contains TypeScript interfaces for:
-- Risk data structures (`Risk`, `RiskStats`)
-- Exposure monitoring (`ExposedService`, `GeographicData`)
-- Skill management (`TrustedSkill`, `SuspiciousSkill`, `SkillAnalysis`)
-- API response patterns (`ApiResponse`, `PaginatedResponse`)
+- [`tools/openclaw-scan/scan.py`](/Users/shawn/Desktop/openclaw-watchboard/tools/openclaw-scan/scan.py)
 
-## Development Patterns
+`package:openclaw-scan` generates the downloadable archive exposed by the frontend:
 
-### API Development
-- All API responses use the standardized `ApiResponse<T>` interface
-- Controllers use async/await with proper error handling
-- Express middleware handles CORS, rate limiting, and security headers
-- Routes are organized by functional domain (risks, exposure, skills)
+- [`frontend/public/downloads/openclaw-scan.zip`](/Users/shawn/Desktop/openclaw-watchboard/frontend/public/downloads/openclaw-scan.zip)
 
-### Frontend Development
-- Uses Ant Design Pro's ProComponents for consistent enterprise UI
-- State management through built-in UmiJS data flow
-- Charts implemented with @ant-design/charts
-- TypeScript strict mode enabled throughout
+## Data Sources That Matter
 
-### Error Handling
-- Backend uses centralized error middleware (`errorHandler`)
-- Frontend displays user-friendly error messages via Ant Design notifications
-- API errors include proper HTTP status codes and structured error objects
+### Exposure Data
 
-## Database & Data Sources
+The exposure dataset is not just one CSV anymore. It is assembled from:
 
-### Local Storage
-- SQLite database for application data and caching
-- TypeORM entities for data modeling
-- Database migrations for schema management
+- deduplicated global instances:
+  - [`data/explosure/openclaw_instances_deduped.csv`](/Users/shawn/Desktop/openclaw-watchboard/data/explosure/openclaw_instances_deduped.csv)
+- liveness probing results:
+  - [`data/explosure/endpoint_alive.csv`](/Users/shawn/Desktop/openclaw-watchboard/data/explosure/endpoint_alive.csv)
+- version probing results:
+  - [`data/explosure/endpoint_alive_configs.json`](/Users/shawn/Desktop/openclaw-watchboard/data/explosure/endpoint_alive_configs.json)
+- China domestic distribution:
+  - [`data/explosure/openclaw_instances_cn.csv`](/Users/shawn/Desktop/openclaw-watchboard/data/explosure/openclaw_instances_cn.csv)
 
-### External Data Sources
-- OpenClaw API integration for vulnerability data
-- CVE feeds for security intelligence
-- Community Skill repositories for verification
-- Network scanning tools (nmap, masscan) for exposure detection
+The main script is:
 
-## Security Considerations
+- [`scripts/analyze_exposure_data.py`](/Users/shawn/Desktop/openclaw-watchboard/scripts/analyze_exposure_data.py)
 
-- Rate limiting on all API endpoints
-- Input validation and sanitization
-- CORS policies configured for frontend-backend communication
-- Environment variable configuration for sensitive credentials
-- Security scanning integration for Skill verification
+Important current behavior:
 
-## Environment Configuration
+- `health=200` is interpreted as an active instance
+- `serverVersion` is written into the exposure DB
+- China/domestic metadata is written into exposure records
+- domestic vs overseas is shown in the frontend
+- China province/city summaries are exposed by the backend for charts
 
-Key environment variables (see `.env.example`):
-- `OPENCLAW_API_URL` and `OPENCLAW_API_KEY` - OpenClaw service integration
-- `THREAT_INTEL_FEEDS` - External threat intelligence sources
-- `SKILL_REPO_URLS` - Trusted Skill repository locations
-- Database and Redis connection strings
-- SMTP configuration for alerting
+### Risk / Vulnerability Data
 
-## Adding New Features
+The risks DB is built from the vulnerability CSV workflow.
 
-When extending the dashboard:
+Important warning:
 
-1. **New Risk Types**: Extend the Risk interface in `shared/src/types/` and add corresponding API endpoints
-2. **New Visualization**: Add chart components using @ant-design/charts in the frontend
-3. **New Data Sources**: Implement service classes in `backend/src/services/`
-4. **New Skill Detection**: Extend SkillController with new analysis methods
+- [`scripts/setup_database.py`](/Users/shawn/Desktop/openclaw-watchboard/scripts/setup_database.py) was previously dropping vulnerability tables and caused the risks UI to go empty.
+- That behavior has already been fixed and should not be reintroduced.
 
-## Common Development Tasks
+If Dashboard or Risks pages suddenly show no vulnerability data, check:
 
-### Adding a New API Endpoint
-1. Define the route in the appropriate router file (`backend/src/routes/`)
-2. Implement the controller method with proper TypeScript types
-3. Add the endpoint to the corresponding interface in `shared/src/types/`
-4. Update frontend API calls to use the new endpoint
+1. `data/risks.db`
+2. whether `refresh:risks-db` actually completed
+3. whether `setup_database.py` was modified incorrectly
 
-### Adding New Data Visualization
-1. Use Ant Design Charts components in the frontend
-2. Ensure data follows the shared type interfaces
-3. Implement responsive design for dashboard layouts
-4. Add proper loading and error states
+### Skills Data
 
-### Extending Security Analysis
-1. Add new analysis algorithms to the appropriate controller
-2. Define new threat detection patterns
-3. Update the SkillAnalysis interface to include new metrics
-4. Implement frontend display for new analysis results
+Skills data still contains mock-like detail semantics in places, but the current UI expects:
+
+- list filtering on safe / suspicious / malicious sections
+- less repetitive label clutter
+- ordering that does not cluster identical causes together
+
+Relevant files:
+
+- [`frontend/src/pages/Skills/index.tsx`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/pages/Skills/index.tsx)
+- [`backend/src/services/SkillDataService.ts`](/Users/shawn/Desktop/openclaw-watchboard/backend/src/services/SkillDataService.ts)
+
+## Frontend Routes And Menu Names
+
+These are stakeholder-approved current menu labels:
+
+- `menu.dashboard`: `OpenClaw安全治理总览`
+- `menu.risks`: `OpenClaw风险漏洞追踪`
+- `menu.risks.top10`: `OpenClaw Top 10风险`
+- `menu.risks.vulnerabilities`: `OpenClaw已披露漏洞`
+- `menu.exposure`: `OpenClaw公网暴露监测`
+- `menu.skills`: `Skill生态后门投毒治理`
+- `menu.deploymentSecurity`: `OpenClaw部署安全检测`
+
+Relevant files:
+
+- [`frontend/src/locales/zh-CN/menu.ts`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/locales/zh-CN/menu.ts)
+- [`frontend/config/routes.ts`](/Users/shawn/Desktop/openclaw-watchboard/frontend/config/routes.ts)
+
+Important route:
+
+- `/tools` is the current route for the deployment security page
+
+Do not change the route back to `/deployment-security` unless explicitly asked.
+
+## Page-Specific Context
+
+### Exposure Page
+
+Relevant files:
+
+- [`frontend/src/pages/Exposure/index.tsx`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/pages/Exposure/index.tsx)
+- [`backend/src/services/ExposureDatabaseService.ts`](/Users/shawn/Desktop/openclaw-watchboard/backend/src/services/ExposureDatabaseService.ts)
+- [`frontend/src/services/exposureApi.ts`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/services/exposureApi.ts)
+
+Current state expected by the user:
+
+- top summary cards are custom and not template defaults
+- “high-risk exposures” was replaced with active-instance-oriented metrics
+- China vs overseas exposure is explicit
+- service details include domestic/overseas labeling and domestic location columns
+- “risk score by region” was removed
+- “risk severity” overuse was intentionally removed from exposure detail UX
+- global map and China map use different color scales
+- China map supports zoom / drag and Chinese labels in tooltips
+- province top 5 replaced the old risk distribution chart
+- evolution trend chart exists and is placed before the global distribution chart
+- download / deployment tooling page exists separately under `/tools`
+
+Do not casually reintroduce:
+
+- severity-heavy exposure framing
+- region risk scores
+- duplicated province/city labels like `北京 / 北京`
+
+### Skills Page
+
+Relevant file:
+
+- [`frontend/src/pages/Skills/index.tsx`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/pages/Skills/index.tsx)
+
+Current expectations:
+
+- suspicious and malicious tabs have filter controls too
+- repetitive mock-like warning boxes were intentionally removed
+- suspicious list should not show random-looking badge counts
+- ordering should not group identical issues too tightly
+
+### Deployment Security Page
+
+Relevant files:
+
+- [`frontend/src/pages/DeploymentSecurity/index.tsx`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/pages/DeploymentSecurity/index.tsx)
+- [`frontend/src/pages/DeploymentSecurity/sampleReport.json`](/Users/shawn/Desktop/openclaw-watchboard/frontend/src/pages/DeploymentSecurity/sampleReport.json)
+- [`tools/openclaw-scan/`](/Users/shawn/Desktop/openclaw-watchboard/tools/openclaw-scan)
+
+Current expectations:
+
+- this page is stakeholder-facing, not an internal engineering doc page
+- it offers a direct download link to `/downloads/openclaw-scan.zip`
+- wording should stay concise and polished
+- the route is `/tools`
+
+## Deployment Context
+
+The current production-like deployment pattern is:
+
+- Tencent Cloud Ubuntu host
+- Node + PM2 for backend
+- Nginx serving frontend static files
+- `/api` proxied to backend
+
+The PM2 app name is:
+
+- `openclaw-backend`
+
+The application has been deployed under:
+
+- `/var/www/openclaw-watchboard`
+
+Nginx host routing matters.
+
+Important verification detail:
+
+- direct `curl http://127.0.0.1/...` on the server may hit the default Nginx site
+- for site verification use the correct virtual host header, for example:
+
+```bash
+curl -I -H "Host: clawsec.com.cn" http://127.0.0.1/tools
+curl -I -H "Host: clawsec.com.cn" http://127.0.0.1/downloads/openclaw-scan.zip
+```
+
+If `/tools` or the download file seem missing but build succeeded, verify the request is reaching the intended Nginx vhost before assuming deployment failed.
+
+## How Deployments Were Recently Done
+
+The current working deployment approach used in this repo:
+
+1. create a tarball locally
+2. upload it to the Tencent server
+3. extract into `/var/www/openclaw-watchboard`
+4. run `npm run build`
+5. restart `pm2 restart openclaw-backend`
+6. verify health and key routes
+
+The backend health check:
+
+```bash
+curl http://127.0.0.1:3005/health
+```
+
+Common API checks:
+
+```bash
+curl http://127.0.0.1:3005/api/risks/vulnerabilities
+curl http://127.0.0.1:3005/api/exposure/overview
+```
+
+## Editing Guidance For Future Agents
+
+- Prefer preserving the current UX decisions. Many were requested explicitly by the stakeholder.
+- Do not revert “odd” page choices unless they are clearly accidental. Several were deliberate.
+- If changing data scripts, verify they do not wipe existing DB tables unintentionally.
+- If changing exposure or skills filtering/order, test both backend behavior and visible frontend results.
+- After frontend changes, always run:
+
+```bash
+npm run build:frontend
+```
+
+- After backend changes, run:
+
+```bash
+npm run build:backend
+```
+
+## If You Need To Re-Sync Production
+
+Typical sequence:
+
+```bash
+npm run refresh:databases
+npm run sync:databases
+```
+
+For code changes, rebuild and deploy the repo contents to the Tencent host, then validate:
+
+- `/health`
+- `/tools`
+- `/downloads/openclaw-scan.zip`
+- key API routes used by Dashboard / Exposure / Risks
+
+## In Short
+
+If a future agent has to continue work quickly, the highest-risk misunderstandings are:
+
+1. assuming the repo docs are still generic and current
+2. not realizing data refresh + DB sync scripts are the real operating model
+3. accidentally breaking the custom Exposure page behavior
+4. forgetting that `/tools` and the download ZIP are part of the current public-facing site
+5. verifying Nginx without the correct `Host` header and misdiagnosing a 404
