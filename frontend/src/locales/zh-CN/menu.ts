@@ -8,7 +8,7 @@ export default {
   "menu.risks.vulnerabilities": "OpenClaw已披露漏洞",
   "menu.exposure": "OpenClaw公网暴露监测",
   "menu.skills": "Skill生态后门投毒治理",
-  "menu.deploymentSecurity": "OpenClaw部署安全检测工具",
+  "menu.deploymentSecurity": "OpenClaw部署安全检测",
   "menu.admin": "管理页",
   "menu.admin.sub-page": "二级管理页",
   "menu.login": "登录",

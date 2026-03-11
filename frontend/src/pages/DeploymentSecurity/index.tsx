@@ -157,7 +157,11 @@ export default function DeploymentSecurity() {
 
       <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 24 }}>
         <Col span={15} style={{ display: 'flex' }}>
-          <Card title="样例检测结果" style={{ borderRadius: 20, width: '100%', height: '100%' }} bodyStyle={{ height: '100%' }}>
+          <Card
+            title="样例检测结果"
+            style={{ borderRadius: 20, width: '100%', height: '100%' }}
+            bodyStyle={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+          >
             <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
               <Col span={8}>
                 <Statistic title="报告生成时间" value={sampleReport.generatedAt} valueStyle={{ fontSize: 18 }} />
@@ -169,54 +173,60 @@ export default function DeploymentSecurity() {
                 <Statistic title="输出格式" value={outputFiles.length} suffix="种" />
               </Col>
             </Row>
-            <List
-              itemLayout="vertical"
-              dataSource={sectionRows}
-              renderItem={(item) => (
-                <List.Item>
-                  <Space align="center" size={8} wrap>
-                    <Typography.Text strong>{item.title}</Typography.Text>
-                    <Tag color="blue">{item.count} 条结果</Tag>
-                  </Space>
-                  {item.preview.length > 0 ? (
-                    <Space direction="vertical" size={6} style={{ marginTop: 10 }}>
-                      {item.preview.map((preview) => (
-                        <Typography.Text key={preview} type="secondary">
-                          {preview}
-                        </Typography.Text>
-                      ))}
+            <div style={{ flex: 1 }}>
+              <List
+                itemLayout="vertical"
+                dataSource={sectionRows}
+                renderItem={(item) => (
+                  <List.Item>
+                    <Space align="center" size={8} wrap>
+                      <Typography.Text strong>{item.title}</Typography.Text>
+                      <Tag color="blue">{item.count} 条结果</Tag>
                     </Space>
-                  ) : (
-                    <Typography.Text type="secondary" style={{ display: 'block', marginTop: 10 }}>
-                      该模块本次未发现需要重点展开的样例项。
-                    </Typography.Text>
-                  )}
-                </List.Item>
-              )}
-            />
+                    {item.preview.length > 0 ? (
+                      <Space direction="vertical" size={6} style={{ marginTop: 10 }}>
+                        {item.preview.map((preview) => (
+                          <Typography.Text key={preview} type="secondary">
+                            {preview}
+                          </Typography.Text>
+                        ))}
+                      </Space>
+                    ) : (
+                      <Typography.Text type="secondary" style={{ display: 'block', marginTop: 10 }}>
+                        该模块本次未发现需要重点展开的样例项。
+                      </Typography.Text>
+                    )}
+                  </List.Item>
+                )}
+              />
+            </div>
           </Card>
         </Col>
         <Col span={9} style={{ display: 'flex' }}>
-          <Space direction="vertical" size={16} style={{ width: '100%', height: '100%' }}>
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <Card title="工具产出物" style={{ borderRadius: 20 }}>
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              {outputFiles.map((file) => (
-                <Card key={file} size="small">
+                {outputFiles.map((file) => (
+                  <Card key={file} size="small">
+                    <Space align="center">
+                      <CheckCircleOutlined style={{ color: '#1677ff' }} />
+                      <Typography.Text code>{file}</Typography.Text>
+                    </Space>
+                  </Card>
+                ))}
+                <Card size="small">
                   <Space align="center">
-                    <CheckCircleOutlined style={{ color: '#1677ff' }} />
-                    <Typography.Text code>{file}</Typography.Text>
+                    <DownloadOutlined style={{ color: '#1677ff' }} />
+                    <Typography.Link href={downloadUrl}>下载独立工具压缩包</Typography.Link>
                   </Space>
                 </Card>
-              ))}
-              <Card size="small">
-                <Space align="center">
-                  <DownloadOutlined style={{ color: '#1677ff' }} />
-                  <Typography.Link href={downloadUrl}>下载独立工具压缩包</Typography.Link>
-                </Space>
-              </Card>
               </Space>
             </Card>
-            <Card title="适用场景" style={{ borderRadius: 20, flex: 1 }}>
+            <Card
+              title="适用场景"
+              style={{ borderRadius: 20, flex: 1 }}
+              bodyStyle={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+            >
               <Space direction="vertical" size={10}>
                 <Tag color="processing">部署验收</Tag>
                 <Tag color="warning">变更后复检</Tag>
@@ -228,7 +238,7 @@ export default function DeploymentSecurity() {
                 </Typography.Text>
               </Space>
             </Card>
-          </Space>
+          </div>
         </Col>
       </Row>
     </PageContainer>
