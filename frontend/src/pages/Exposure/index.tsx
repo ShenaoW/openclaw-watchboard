@@ -22,7 +22,7 @@ import {
   ScanOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { Column } from "@ant-design/charts";
+import { Column, Line } from "@ant-design/charts";
 import { useEffect, useRef, useState } from "react";
 import {
   ComposableMap,
@@ -37,6 +37,7 @@ import {
   useExposureOverview,
   useGeographicData,
   usePortDistribution,
+  useExposureTrends,
 } from "../../services/exposureApi";
 
 const { Search } = Input;
@@ -283,6 +284,11 @@ export default function Exposure() {
     loading: portLoading,
     error: portError,
   } = usePortDistribution();
+  const {
+    trendData,
+    loading: trendLoading,
+    error: trendError,
+  } = useExposureTrends("30d");
 
   const {
     services: exposedServices,
@@ -301,13 +307,13 @@ export default function Exposure() {
   });
 
   useEffect(() => {
-    const errors = [overviewError, geoError, portError, servicesError].filter(
+    const errors = [overviewError, geoError, portError, trendError, servicesError].filter(
       Boolean,
     );
     if (errors.length > 0) {
       message.error(String(errors[0]));
     }
-  }, [overviewError, geoError, portError, servicesError]);
+  }, [overviewError, geoError, portError, trendError, servicesError]);
 
   const worldMaxCount = Math.max(
     ...(geographicData?.world || []).map((item) => item.count),
@@ -503,6 +509,64 @@ export default function Exposure() {
         items.map((item) => ({
           ...item,
           value: Number(item.data.value).toLocaleString(),
+        })),
+    },
+  };
+
+  const evolutionChartData = trendData.flatMap((item) => [
+    { date: item.date, type: "首次发现", value: item.firstSeen },
+    { date: item.date, type: "最后发现", value: item.lastSeen },
+    { date: item.date, type: "活跃实例", value: item.active },
+  ]);
+
+  const evolutionLineConfig = {
+    data: evolutionChartData,
+    xField: "date",
+    yField: "value",
+    seriesField: "type",
+    height: 320,
+    colorField: "type",
+    color: ({ type }: { type: string }) => {
+      if (type === "首次发现") return "#1677ff";
+      if (type === "最后发现") return "#ff7a45";
+      return "#52c41a";
+    },
+    smooth: true,
+    point: {
+      size: 3,
+      shape: "circle",
+      style: {
+        lineWidth: 1.5,
+        fill: "#fff",
+      },
+    },
+    axis: {
+      x: {
+        title: true,
+        titleText: "日期",
+        labelAutoRotate: true,
+        labelFill: "#1677ff",
+      },
+      y: {
+        title: true,
+        titleText: "实例数量",
+        labelFormatter: (value: string) => Number(value).toLocaleString(),
+        labelFill: "#1677ff",
+      },
+    },
+    legend: {
+      color: {
+        title: false,
+        position: "top",
+      },
+      position: "top",
+    },
+    tooltip: {
+      items: ["type", "value"],
+      customItems: (items: any[]) =>
+        items.map((item) => ({
+          ...item,
+          value: Number(item.value).toLocaleString(),
         })),
     },
   };
@@ -741,6 +805,12 @@ export default function Exposure() {
           </Col>
         </Row>
       </Spin>
+
+      <Card title="📈 暴露实例演化趋势" style={{ marginBottom: 16 }}>
+        <Spin spinning={trendLoading}>
+          <Line {...evolutionLineConfig} />
+        </Spin>
+      </Card>
 
       <Card title="🌍 全球暴露实例分布图" style={{ marginBottom: 16 }}>
         <div

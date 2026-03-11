@@ -71,6 +71,12 @@ export default [
     ],
   },
   {
+    path: '/deployment-security',
+    name: 'deploymentSecurity',
+    icon: 'tool',
+    component: './DeploymentSecurity',
+  },
+  {
     path: '/',
     redirect: '/dashboard',
   },

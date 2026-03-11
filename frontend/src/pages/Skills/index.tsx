@@ -1,7 +1,7 @@
 import { PageContainer, ProList } from '@ant-design/pro-components';
 import {
   Card, Col, Row, Tabs, Button, Tag, Rate, Progress, Badge,
-  Avatar, Input, Select, Space, Modal, Form, message, Descriptions, Alert, Statistic,
+  Avatar, Input, Select, Space, Modal, Form, message, Descriptions, Statistic,
   Table, Spin, Empty
 } from 'antd';
 import {
@@ -247,16 +247,6 @@ export default function Skills() {
       render: (count: number) => count > 0 ? <Tag color="volcano">{count}</Tag> : <Tag>0</Tag>,
     },
   ];
-
-  const getRiskColor = (level: string) => {
-    switch (level) {
-      case 'Critical': return 'red';
-      case 'High': return 'orange';
-      case 'Medium': return 'yellow';
-      case 'Low': return 'green';
-      default: return 'default';
-    }
-  };
 
   const getSourceTag = (source: string) => {
     switch (source) {
@@ -620,13 +610,43 @@ export default function Skills() {
                   <Card
                     title="可疑 Skills 列表"
                     extra={
-                      <Button
-                        type="primary"
-                        danger
-                        onClick={() => setReportModalVisible(true)}
-                      >
-                        举报可疑 Skill
-                      </Button>
+                      <Space>
+                        <Select
+                          placeholder="选择数据源"
+                          style={{ width: 150 }}
+                          value={selectedSource}
+                          onChange={handleSourceChange}
+                          allowClear
+                        >
+                          <Option value="clawhub">ClawHub官方</Option>
+                          <Option value="skills.rest">Skills.rest</Option>
+                          <Option value="skillsmp">SkillsMP</Option>
+                        </Select>
+                        <Select
+                          placeholder="选择分类"
+                          style={{ width: 150 }}
+                          value={selectedCategory}
+                          onChange={handleCategoryChange}
+                          allowClear
+                        >
+                          {stats.topCategories.map((cat: any) => (
+                            <Option key={cat.category} value={cat.category}>{cat.category}</Option>
+                          ))}
+                        </Select>
+                        <Search
+                          placeholder="搜索 Skills"
+                          style={{ width: 200 }}
+                          onSearch={handleSearch}
+                          enterButton
+                        />
+                        <Button
+                          type="primary"
+                          danger
+                          onClick={() => setReportModalVisible(true)}
+                        >
+                          举报可疑 Skill
+                        </Button>
+                      </Space>
                     }
                     loading={suspiciousLoading}
                   >
@@ -647,36 +667,19 @@ export default function Skills() {
                       }}
                       metas={{
                         title: {
-                          render: (_, record) => {
-                            const riskLevel = record.securityScore < 30 ? 'Critical' : record.securityScore < 60 ? 'High' : 'Medium';
-                            return (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <BugOutlined style={{ color: '#ff4d4f' }} />
-                                <span style={{ fontWeight: 600 }}>{record.name}</span>
-                                <Tag color={getRiskColor(riskLevel)}>
-                                  {riskLevel}
-                                </Tag>
-                                {getSourceTag(record.source)}
-                                <Badge count={Math.floor(Math.random() * 50) + 1} />
-                              </div>
-                            );
-                          },
+                          render: (_, record) => (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <BugOutlined style={{ color: '#ff4d4f' }} />
+                              <span style={{ fontWeight: 600 }}>{record.name}</span>
+                              <Tag color="orange">待复核</Tag>
+                              {getSourceTag(record.source)}
+                            </div>
+                          ),
                         },
                         description: {
                           render: (_, record) => (
                             <div>
                               <div style={{ marginBottom: 8 }}>{record.description}</div>
-                              <Alert
-                                message="检测到的可疑行为:"
-                                description={
-                                  <ul style={{ margin: 0, paddingLeft: 20 }}>
-                                    <li style={{ fontSize: 12 }}>从外部源检测到可疑分类</li>
-                                    <li style={{ fontSize: 12 }}>需要进一步安全审查</li>
-                                    {record.securityScore < 50 && <li style={{ fontSize: 12 }}>安全评分过低</li>}
-                                  </ul>
-                                }
-                                type="warning"
-                              />
                               <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
                                 首次发现: {new Date(record.lastUpdated).toLocaleDateString()} | 分析状态: 待审查
                               </div>
@@ -723,9 +726,39 @@ export default function Skills() {
                   <Card
                     title="恶意 Skills 列表"
                     extra={
-                      <Tag color="volcano">
-                        已确认恶意: {stats.securityDistribution.malicious}
-                      </Tag>
+                      <Space>
+                        <Select
+                          placeholder="选择数据源"
+                          style={{ width: 150 }}
+                          value={selectedSource}
+                          onChange={handleSourceChange}
+                          allowClear
+                        >
+                          <Option value="clawhub">ClawHub官方</Option>
+                          <Option value="skills.rest">Skills.rest</Option>
+                          <Option value="skillsmp">SkillsMP</Option>
+                        </Select>
+                        <Select
+                          placeholder="选择分类"
+                          style={{ width: 150 }}
+                          value={selectedCategory}
+                          onChange={handleCategoryChange}
+                          allowClear
+                        >
+                          {stats.topCategories.map((cat: any) => (
+                            <Option key={cat.category} value={cat.category}>{cat.category}</Option>
+                          ))}
+                        </Select>
+                        <Search
+                          placeholder="搜索 Skills"
+                          style={{ width: 200 }}
+                          onSearch={handleSearch}
+                          enterButton
+                        />
+                        <Tag color="volcano">
+                          已确认恶意: {stats.securityDistribution.malicious}
+                        </Tag>
+                      </Space>
                     }
                     loading={maliciousLoading}
                   >
@@ -750,8 +783,8 @@ export default function Skills() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <StopOutlined style={{ color: '#cf1322' }} />
                               <span style={{ fontWeight: 600 }}>{record.name}</span>
-                              <Tag color="red">Malicious</Tag>
                               {getSourceTag(record.source)}
+                              <Tag color="red">已确认恶意</Tag>
                             </div>
                           ),
                         },
@@ -759,11 +792,6 @@ export default function Skills() {
                           render: (_, record) => (
                             <div>
                               <div style={{ marginBottom: 8 }}>{record.description}</div>
-                              <Alert
-                                message="高风险处置建议"
-                                description="建议默认封禁，不应进入可信库或生产运行环境。"
-                                type="error"
-                              />
                               <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
                                 最近更新时间: {new Date(record.lastUpdated).toLocaleDateString()}
                               </div>

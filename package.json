@@ -20,6 +20,8 @@
     "refresh:skills-db": "python3 scripts/setup_database.py && python3 scripts/analyze_clawhub_skills.py && python3 scripts/analyze_csv_skills.py && python3 scripts/generate_statistics.py",
     "refresh:risks-db": "python3 scripts/setup_database.py && python3 scripts/analyze_vulnerabilities.py && python3 scripts/import_vulnerabilities_to_db.py",
     "refresh:exposure-db": "python3 scripts/analyze_exposure_data.py",
+    "scan:deployment-security": "python3 tools/openclaw-scan/scan.py",
+    "package:openclaw-scan": "cd tools/openclaw-scan && zip -r ../../frontend/public/downloads/openclaw-scan.zip . -x '*.DS_Store' 'openclaw_security_report.md' '__pycache__/*' '*.pyc'",
     "sync:databases": "./scripts/sync_databases_to_tencent.sh",
     "test": "npm run test:backend && npm run test:frontend",
     "test:frontend": "cd frontend && npm run test",

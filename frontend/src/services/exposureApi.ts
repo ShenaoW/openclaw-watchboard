@@ -99,6 +99,13 @@ export interface PortDistribution {
   }>;
 }
 
+export interface ExposureTrendPoint {
+  date: string;
+  firstSeen: number;
+  lastSeen: number;
+  active: number;
+}
+
 // 动态获取API基础URL，支持不同环境
 const getApiBase = () => {
   if (typeof window !== 'undefined') {
@@ -203,6 +210,18 @@ export const exposureAPI = {
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to fetch risk level distribution');
+    }
+    return data.data;
+  },
+
+  async getTrends(timeRange = '30d'): Promise<{
+    timeRange: string;
+    data: ExposureTrendPoint[];
+  }> {
+    const response = await fetch(`${API_BASE}/exposure/trends?timeRange=${encodeURIComponent(timeRange)}`);
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Failed to fetch exposure trends');
     }
     return data.data;
   },
@@ -367,4 +386,29 @@ export const usePortDistribution = () => {
   }, []);
 
   return { portData, loading, error, refetch: loadPortData };
+};
+
+export const useExposureTrends = (timeRange = '30d') => {
+  const [trendData, setTrendData] = useState<ExposureTrendPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTrendData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await exposureAPI.getTrends(timeRange);
+      setTrendData(data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTrendData();
+  }, [timeRange]);
+
+  return { trendData, loading, error, refetch: loadTrendData };
 };

@@ -437,15 +437,25 @@ class ExposureDatabaseService {
 
   async getTrends(timeRange = '7d') {
     const dayCount = timeRange === '30d' ? 30 : timeRange === '14d' ? 14 : 7;
-    const rows = await this.query<any>(
+    const firstSeenRows = await this.query<any>(
+      `
+      SELECT
+        substr(first_seen, 1, 10) as date,
+        COUNT(*) as count
+      FROM exposure_instances
+      WHERE first_seen IS NOT NULL
+      GROUP BY substr(first_seen, 1, 10)
+      ORDER BY date DESC
+      LIMIT ?
+      `,
+      [dayCount],
+    );
+
+    const lastSeenRows = await this.query<any>(
       `
       SELECT
         substr(last_seen, 1, 10) as date,
-        COUNT(*) as total,
-        SUM(CASE WHEN risk_level = 'Critical' THEN 1 ELSE 0 END) as critical,
-        SUM(CASE WHEN risk_level = 'High' THEN 1 ELSE 0 END) as high,
-        SUM(CASE WHEN risk_level = 'Medium' THEN 1 ELSE 0 END) as medium,
-        SUM(CASE WHEN risk_level = 'Low' THEN 1 ELSE 0 END) as low
+        COUNT(*) as count
       FROM exposure_instances
       WHERE last_seen IS NOT NULL
       GROUP BY substr(last_seen, 1, 10)
@@ -455,9 +465,45 @@ class ExposureDatabaseService {
       [dayCount],
     );
 
+    const activeRows = await this.query<any>(
+      `
+      SELECT
+        substr(last_seen, 1, 10) as date,
+        SUM(CASE WHEN runtime_status = 'Active' THEN 1 ELSE 0 END) as count
+      FROM exposure_instances
+      WHERE last_seen IS NOT NULL
+      GROUP BY substr(last_seen, 1, 10)
+      ORDER BY date DESC
+      LIMIT ?
+      `,
+      [dayCount],
+    );
+
+    const byDate = new Map<string, { date: string; firstSeen: number; lastSeen: number; active: number }>();
+
+    for (const row of firstSeenRows) {
+      const item = byDate.get(row.date) || { date: row.date, firstSeen: 0, lastSeen: 0, active: 0 };
+      item.firstSeen = Number(row.count || 0);
+      byDate.set(row.date, item);
+    }
+
+    for (const row of lastSeenRows) {
+      const item = byDate.get(row.date) || { date: row.date, firstSeen: 0, lastSeen: 0, active: 0 };
+      item.lastSeen = Number(row.count || 0);
+      byDate.set(row.date, item);
+    }
+
+    for (const row of activeRows) {
+      const item = byDate.get(row.date) || { date: row.date, firstSeen: 0, lastSeen: 0, active: 0 };
+      item.active = Number(row.count || 0);
+      byDate.set(row.date, item);
+    }
+
+    const data = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+
     return {
       timeRange,
-      data: rows.reverse(),
+      data,
     };
   }
 

@@ -221,10 +221,11 @@ class SkillDataService {
       FROM skills
       ${whereClause}
       ORDER BY
-        CASE WHEN classification IN ('suspicious', 'malicious') THEN security_score END ASC,
         CASE WHEN classification = 'safe' THEN security_score END DESC,
+        CASE WHEN classification IN ('suspicious', 'malicious') THEN last_updated END DESC,
         downloads DESC,
-        rating DESC
+        rating DESC,
+        name COLLATE NOCASE ASC
       LIMIT ? OFFSET ?
       `,
       [...params, limit, offset],
