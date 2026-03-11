@@ -17,6 +17,8 @@
     "build:backend": "cd backend && npm run build",
     "build:shared": "cd shared && npm run build",
     "refresh:databases": "python3 scripts/run_analysis.py",
+    "refresh:skills-db": "python3 scripts/setup_database.py && python3 scripts/analyze_clawhub_skills.py && python3 scripts/analyze_csv_skills.py && python3 scripts/generate_statistics.py",
+    "refresh:risks-db": "python3 scripts/setup_database.py && python3 scripts/analyze_vulnerabilities.py && python3 scripts/import_vulnerabilities_to_db.py",
     "refresh:exposure-db": "python3 scripts/analyze_exposure_data.py",
     "sync:databases": "./scripts/sync_databases_to_tencent.sh",
     "test": "npm run test:backend && npm run test:frontend",
