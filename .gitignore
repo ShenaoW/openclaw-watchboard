@@ -141,3 +141,7 @@ vulnerability-reports/
 
 # Local configuration overrides
 config/local.json
+
+# pychache
+__pycache__/
+*.pyc
