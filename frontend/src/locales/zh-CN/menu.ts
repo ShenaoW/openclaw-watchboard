@@ -1,7 +1,7 @@
 export default {
   "menu.welcome": "欢迎",
   "menu.more-blocks": "更多区块",
-  "menu.home": "首页",
+  "menu.home": "平台主页",
   "menu.dashboard": "OpenClaw安全治理总览",
   "menu.risks": "OpenClaw风险漏洞追踪",
   "menu.risks.top10": "OpenClaw Top 10风险",

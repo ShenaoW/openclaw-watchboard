@@ -11,6 +11,9 @@ export interface ExposureStats {
   highRiskExposures: number;
   mediumRiskExposures: number;
   lowRiskExposures: number;
+  historicalVulnerableInstances: number;
+  historicalVulnerableActiveInstances: number;
+  historicalMatchedVulnerabilityCount: number;
   lastScanTime: string;
   topCountries: Array<{
     country: string;
@@ -38,6 +41,15 @@ export interface ExposedService {
   isp?: string;
   runtimeStatus: string;
   serverVersion?: string | null;
+  historicalVulnCount?: number;
+  historicalVulnMaxSeverity?: string | null;
+  historicalVulnMatches?: Array<{
+    vulnerability_id: string;
+    title: string;
+    severity: string;
+    affected_versions: string;
+    cve: string;
+  }>;
   isChinaInstance?: boolean;
   province?: string | null;
   cnCity?: string | null;
@@ -133,6 +145,8 @@ export const exposureAPI = {
     runtimeStatus?: string;
     chinaScope?: string;
     versionStatus?: string;
+    historicalVulnStatus?: string;
+    historicalVulnCountRange?: string;
     country?: string;
     isp?: string;
     credentials_leaked?: string;
@@ -298,6 +312,8 @@ export const useExposedServices = (filters?: {
   runtimeStatus?: string;
   chinaScope?: string;
   versionStatus?: string;
+  historicalVulnStatus?: string;
+  historicalVulnCountRange?: string;
   country?: string;
   isp?: string;
   credentials_leaked?: string;

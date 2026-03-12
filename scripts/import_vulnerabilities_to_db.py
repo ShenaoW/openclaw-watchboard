@@ -10,6 +10,15 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 ANNOTATED_CSV_PATH = os.path.abspath(os.path.join(BASE_DIR, "data", "vuls", "openclaw_vuls_annotated.csv"))
 RISKS_DB_PATH = os.path.abspath(os.path.join(BASE_DIR, "data", "risks.db"))
 
+STAGE_NAME_MAP = {
+    "Authentication & Authorization Decision Stage": "网关鉴权与路由",
+    "Auth State": "网关鉴权与路由",
+    "Resource Access Stage": "工具与技能执行",
+    "Execution Stage": "工具与技能执行",
+    "Persistence & Output Presentation Stage": "消息回传与持久化",
+    "Input Ingress Stage": "消息输入与通道适配",
+}
+
 
 def to_int(value, default=0):
     try:
@@ -30,6 +39,11 @@ def empty_to_none(value):
       return None
     cleaned = str(value).strip()
     return cleaned or None
+
+
+def normalize_stage(value):
+    cleaned = (value or "").strip()
+    return STAGE_NAME_MAP.get(cleaned, cleaned)
 
 
 def main():
@@ -71,7 +85,7 @@ def main():
             (
                 to_int(row.get("No.")),
                 row.get("Vulnerability Title", ""),
-                row.get("Stage", ""),
+                normalize_stage(row.get("Stage", "")),
                 row.get("Reason", ""),
                 empty_to_none(row.get("Vulnerability ID", "")),
                 row.get("Severity", ""),

@@ -1,4 +1,8 @@
-import { PageContainer, ProTable, type ProColumns } from "@ant-design/pro-components";
+import {
+  PageContainer,
+  ProTable,
+  type ProColumns,
+} from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
 import { Alert, Card, Space, Tag, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
@@ -10,19 +14,6 @@ const riskTabList = [
   { tab: "Top 10 风险", key: "/risks/top10" },
   { tab: "已披露漏洞", key: "/risks/vulnerabilities" },
 ];
-
-const top10ColorMap: Record<string, string> = {
-  "prompt-injection": "magenta",
-  "malicious-skills": "volcano",
-  "skill-dependency-injection": "purple",
-  "tool-privilege-escalation": "red",
-  clawjacked: "red",
-  "command-injection": "red",
-  "sandbox-hash-collision": "orange",
-  "token-drain": "gold",
-  "fake-installer": "gold",
-  "cross-app-leakage": "blue",
-};
 
 const severityWeight: Record<string, number> = {
   Critical: 4,
@@ -45,12 +36,12 @@ export default function VulnerabilitiesPage() {
   const [rows, setRows] = useState<VulnerabilityItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<
-    "all" | "llm" | "general" | "mapped" | "unmapped"
+    "all" | "llm" | "general"
   >("all");
+  const [stageFilter, setStageFilter] = useState<string>("all");
   const [summary, setSummary] = useState({
     llmSpecific: 0,
     generalSoftware: 0,
-    mappedTop10: 0,
   });
 
   useEffect(() => {
@@ -69,14 +60,21 @@ export default function VulnerabilitiesPage() {
           const rankB = b.top10Rank ?? 999;
           if (rankA !== rankB) return rankA - rankB;
 
-          const severityDiff = (severityWeight[b.severity] || 0) - (severityWeight[a.severity] || 0);
+          const severityDiff =
+            (severityWeight[b.severity] || 0) -
+            (severityWeight[a.severity] || 0);
           if (severityDiff !== 0) return severityDiff;
 
           return a.index - b.index;
         });
 
         setRows(sortedRows);
-        setSummary(data.summary || { llmSpecific: 0, generalSoftware: 0, mappedTop10: 0 });
+        setSummary(
+          data.summary || {
+            llmSpecific: 0,
+            generalSoftware: 0,
+          },
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : "加载漏洞数据失败");
       } finally {
@@ -87,25 +85,46 @@ export default function VulnerabilitiesPage() {
     load();
   }, []);
 
-  const mappedCount = useMemo(() => rows.filter((item) => item.top10PrimaryId).length, [rows]);
-  const unmappedCount = rows.length - mappedCount;
+  const stageOptions = useMemo(() => {
+    const counter = new Map<string, number>();
+    rows.forEach((item) => {
+      const key = item.stage?.trim() || "未标注阶段";
+      counter.set(key, (counter.get(key) || 0) + 1);
+    });
+
+    return Array.from(counter.entries())
+      .map(([stage, count]) => ({ stage, count }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.stage.localeCompare(b.stage);
+      });
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
+    let nextRows = rows;
+
     if (activeFilter === "llm") {
-      return rows.filter((item) => item.vulnerabilityNatureId === "llm_system_specific");
+      nextRows = nextRows.filter(
+        (item) => item.vulnerabilityNatureId === "llm_system_specific",
+      );
     }
     if (activeFilter === "general") {
-      return rows.filter((item) => item.vulnerabilityNatureId === "general_software_vulnerability");
+      nextRows = nextRows.filter(
+        (item) =>
+          item.vulnerabilityNatureId === "general_software_vulnerability",
+      );
     }
-    if (activeFilter === "mapped") {
-      return rows.filter((item) => Boolean(item.top10PrimaryId));
-    }
-    if (activeFilter === "unmapped") {
-      return rows.filter((item) => !item.top10PrimaryId);
-    }
-    return rows;
-  }, [activeFilter, rows]);
 
-  const toggleFilter = (filter: "all" | "llm" | "general" | "mapped" | "unmapped") => {
+    if (stageFilter !== "all") {
+      nextRows = nextRows.filter(
+        (item) => (item.stage?.trim() || "未标注阶段") === stageFilter,
+      );
+    }
+
+    return nextRows;
+  }, [activeFilter, rows, stageFilter]);
+
+  const toggleFilter = (filter: "all" | "llm" | "general") => {
     setActiveFilter((current) => (current === filter ? "all" : filter));
   };
 
@@ -122,17 +141,10 @@ export default function VulnerabilitiesPage() {
         ),
     },
     {
-      title: "映射 Top 10",
-      dataIndex: "top10PrimaryLabel",
-      width: 220,
-      render: (_, record) =>
-        record.top10PrimaryId ? (
-          <Tag color={top10ColorMap[record.top10PrimaryId] || "blue"}>
-            {record.top10PrimaryLabel}
-          </Tag>
-        ) : (
-          <Tag>未映射</Tag>
-        ),
+      title: "OpenClaw 生命周期阶段",
+      dataIndex: "stage",
+      width: 240,
+      render: (_, record) => <Tag color="blue">{record.stage || "未标注阶段"}</Tag>,
     },
     {
       title: "漏洞编号",
@@ -147,16 +159,12 @@ export default function VulnerabilitiesPage() {
       width: 360,
     },
     {
-      title: "阶段",
-      dataIndex: "stage",
-      width: 220,
-      ellipsis: true,
-    },
-    {
       title: "严重等级",
       dataIndex: "severity",
       width: 100,
-      render: (_, record) => <Tag color={severityColor(record.severity)}>{record.severity}</Tag>,
+      render: (_, record) => (
+        <Tag color={severityColor(record.severity)}>{record.severity}</Tag>
+      ),
     },
     {
       title: "CWE",
@@ -201,12 +209,17 @@ export default function VulnerabilitiesPage() {
         message={
           <span>
             <strong>标签说明：</strong>
-            大模型系统特有漏洞，指漏洞与 Agent、LLM 提示、工具调用、沙箱或本地控制面等能力直接相关；软件系统通用漏洞，指常规软件系统中也会出现的鉴权、输入校验、路径处理或资源访问缺陷；已映射 Top 10，指该漏洞可对应到 OpenClaw Top 10 某一类核心风险；未映射，指当前未找到足够依据将其归入某个 Top 10 类别。
+            大模型系统特有漏洞，指漏洞与 Agent、LLM
+            提示、工具调用、沙箱或本地控制面等能力直接相关；软件系统通用漏洞，指常规软件系统中也会出现的鉴权、输入校验、路径处理或资源访问缺陷；生命周期阶段用于表示漏洞主要出现于 OpenClaw
+            的哪个处理阶段。
           </span>
         }
       />
 
-      <Card style={{ marginBottom: 16, borderRadius: 20 }} bodyStyle={{ padding: 24 }}>
+      <Card
+        style={{ marginBottom: 16, borderRadius: 20 }}
+        bodyStyle={{ padding: 24 }}
+      >
         <Space size={12} wrap>
           <Tag
             color={activeFilter === "all" ? "blue" : "default"}
@@ -229,35 +242,41 @@ export default function VulnerabilitiesPage() {
           >
             软件系统通用漏洞 {summary.generalSoftware}
           </Tag>
-          <Tag
-            color={activeFilter === "mapped" ? "purple" : "default"}
-            style={{ cursor: "pointer", paddingInline: 10 }}
-            onClick={() => toggleFilter("mapped")}
-          >
-            已映射 Top 10 {summary.mappedTop10}
-          </Tag>
-          <Tag
-            color={activeFilter === "unmapped" ? "cyan" : "default"}
-            style={{ cursor: "pointer", paddingInline: 10 }}
-            onClick={() => toggleFilter("unmapped")}
-          >
-            未映射 {unmappedCount}
-          </Tag>
+          {stageOptions.map((item) => (
+            <Tag
+              key={item.stage}
+              color={stageFilter === item.stage ? "processing" : "default"}
+              style={{ cursor: "pointer", paddingInline: 10 }}
+              onClick={() =>
+                setStageFilter((current) =>
+                  current === item.stage ? "all" : item.stage,
+                )
+              }
+            >
+              {item.stage} {item.count}
+            </Tag>
+          ))}
         </Space>
         {error ? (
-          <Paragraph style={{ color: "#ff4d4f", marginTop: 12, marginBottom: 0 }}>{error}</Paragraph>
+          <Paragraph
+            style={{ color: "#ff4d4f", marginTop: 12, marginBottom: 0 }}
+          >
+            {error}
+          </Paragraph>
         ) : null}
       </Card>
 
       <ProTable<VulnerabilityItem>
-        rowKey={(record) => `${record.index}-${record.vulnerabilityId || record.title}`}
+        rowKey={(record) =>
+          `${record.index}-${record.vulnerabilityId || record.title}`
+        }
         loading={loading}
         search={false}
         options={false}
         columns={columns}
         dataSource={filteredRows}
         pagination={{ pageSize: 20, showSizeChanger: false }}
-        scroll={{ x: 1650 }}
+        scroll={{ x: 1450 }}
         cardBordered
         expandable={{
           expandedRowRender: (record) => (
@@ -271,12 +290,8 @@ export default function VulnerabilitiesPage() {
                 {record.reason || "暂无"}
               </Paragraph>
               <Paragraph style={{ marginBottom: 8 }}>
-                <Text strong>关联 Top 10：</Text>
-                {record.top10MatchLabels?.length > 0 ? record.top10MatchLabels.join("，") : "无"}
-              </Paragraph>
-              <Paragraph style={{ marginBottom: 8 }}>
-                <Text strong>映射置信度：</Text>
-                {record.mappingConfidence ? record.mappingConfidence.toFixed(2) : "0.00"}
+                <Text strong>生命周期阶段：</Text>
+                {record.stage || "未标注阶段"}
               </Paragraph>
               <Paragraph style={{ marginBottom: 0 }}>
                 <Text strong>CVE：</Text>

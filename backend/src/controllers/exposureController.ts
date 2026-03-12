@@ -18,6 +18,8 @@ export class ExposureController {
         runtimeStatus: req.query.runtimeStatus as string | undefined,
         chinaScope: req.query.chinaScope as string | undefined,
         versionStatus: req.query.versionStatus as string | undefined,
+        historicalVulnStatus: req.query.historicalVulnStatus as string | undefined,
+        historicalVulnCountRange: req.query.historicalVulnCountRange as string | undefined,
         country: req.query.country as string | undefined,
         isp: req.query.isp as string | undefined,
         credentialsLeaked: req.query.credentials_leaked as string | undefined,

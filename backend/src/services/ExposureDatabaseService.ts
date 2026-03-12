@@ -10,6 +10,14 @@ interface Pagination {
   totalPages: number;
 }
 
+interface HistoricalVulnerabilityMatch {
+  vulnerability_id: string;
+  title: string;
+  severity: string;
+  affected_versions: string;
+  cve: string;
+}
+
 class ExposureDatabaseService {
   private dbPath = path.join(__dirname, '../../../data/exposure.db');
 
@@ -28,6 +36,19 @@ class ExposureDatabaseService {
   }
 
   private parseJsonArray(value?: string | null): string[] {
+    if (!value) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private parseHistoricalMatches(value?: string | null): HistoricalVulnerabilityMatch[] {
     if (!value) {
       return [];
     }
@@ -95,6 +116,9 @@ class ExposureDatabaseService {
       highRiskExposures: summary.high_count,
       mediumRiskExposures: summary.medium_count,
       lowRiskExposures: summary.low_count,
+      historicalVulnerableInstances: summary.historical_vulnerable_instances || 0,
+      historicalVulnerableActiveInstances: summary.historical_vulnerable_active_instances || 0,
+      historicalMatchedVulnerabilityCount: summary.historical_matched_vulnerability_count || 0,
       lastScanTime: summary.last_scan_time,
       topCountries: topCountries.map((country) => ({
         country: country.country_name,
@@ -114,6 +138,8 @@ class ExposureDatabaseService {
     runtimeStatus?: string;
     chinaScope?: string;
     versionStatus?: string;
+    historicalVulnStatus?: string;
+    historicalVulnCountRange?: string;
     country?: string;
     isp?: string;
     credentialsLeaked?: string;
@@ -148,6 +174,26 @@ class ExposureDatabaseService {
 
     if (filters.versionStatus === 'undetected') {
       where.push(`(server_version IS NULL OR trim(server_version) = '')`);
+    }
+
+    if (filters.historicalVulnStatus === 'matched') {
+      where.push(`historical_vuln_count > 0`);
+    }
+
+    if (filters.historicalVulnStatus === 'unmatched') {
+      where.push(`(historical_vuln_count IS NULL OR historical_vuln_count = 0)`);
+    }
+
+    if (filters.historicalVulnCountRange === '1-2') {
+      where.push(`historical_vuln_count BETWEEN 1 AND 2`);
+    }
+
+    if (filters.historicalVulnCountRange === '3-9') {
+      where.push(`historical_vuln_count BETWEEN 3 AND 9`);
+    }
+
+    if (filters.historicalVulnCountRange === '10+') {
+      where.push(`historical_vuln_count >= 10`);
     }
 
     if (filters.country) {
@@ -217,6 +263,9 @@ class ExposureDatabaseService {
         isp: row.isp,
         runtimeStatus: row.runtime_status || 'Unknown',
         serverVersion: row.server_version || null,
+        historicalVulnCount: Number(row.historical_vuln_count || 0),
+        historicalVulnMaxSeverity: row.historical_vuln_max_severity || null,
+        historicalVulnMatches: this.parseHistoricalMatches(row.historical_vuln_matches),
         isChinaInstance: row.is_china_instance === 'Yes',
         province: row.province || null,
         cnCity: row.cn_city || null,
@@ -530,6 +579,8 @@ class ExposureDatabaseService {
         status: row.status,
         runtimeStatus: row.runtime_status || 'Unknown',
         serverVersion: row.server_version || null,
+        historicalVulnCount: Number(row.historical_vuln_count || 0),
+        historicalVulnMaxSeverity: row.historical_vuln_max_severity || null,
         isChinaInstance: row.is_china_instance === 'Yes',
         province: row.province || null,
         cnCity: row.cn_city || null,

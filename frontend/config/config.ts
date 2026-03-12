@@ -144,6 +144,10 @@ export default defineConfig({
     // 解决首次加载时白屏的问题
     { src: join(PUBLIC_PATH, 'scripts/loading.js'), async: true },
   ],
+  links: [
+    { rel: 'icon', href: join(PUBLIC_PATH, 'favicon.svg'), type: 'image/svg+xml' },
+    { rel: 'alternate icon', href: join(PUBLIC_PATH, 'favicon.ico') },
+  ],
   //================ pro 插件配置 =================
   presets: ['umi-presets-pro'],
   /**

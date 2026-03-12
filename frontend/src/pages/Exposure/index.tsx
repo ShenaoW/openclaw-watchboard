@@ -247,6 +247,9 @@ export default function Exposure() {
   const [runtimeStatusFilter, setRuntimeStatusFilter] = useState("all");
   const [chinaScopeFilter, setChinaScopeFilter] = useState("all");
   const [versionStatusFilter, setVersionStatusFilter] = useState("all");
+  const [historicalVulnFilter, setHistoricalVulnFilter] = useState("all");
+  const [historicalVulnCountFilter, setHistoricalVulnCountFilter] =
+    useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [mapScale, setMapScale] = useState(0.94);
@@ -302,14 +305,24 @@ export default function Exposure() {
     chinaScope: chinaScopeFilter === "all" ? undefined : chinaScopeFilter,
     versionStatus:
       versionStatusFilter === "all" ? undefined : versionStatusFilter,
+    historicalVulnStatus:
+      historicalVulnFilter === "all" ? undefined : historicalVulnFilter,
+    historicalVulnCountRange:
+      historicalVulnCountFilter === "all"
+        ? undefined
+        : historicalVulnCountFilter,
     page: currentPage,
     limit: pageSize,
   });
 
   useEffect(() => {
-    const errors = [overviewError, geoError, portError, trendError, servicesError].filter(
-      Boolean,
-    );
+    const errors = [
+      overviewError,
+      geoError,
+      portError,
+      trendError,
+      servicesError,
+    ].filter(Boolean);
     if (errors.length > 0) {
       message.error(String(errors[0]));
     }
@@ -660,6 +673,62 @@ export default function Exposure() {
         ),
     },
     {
+      title: "历史漏洞关联",
+      key: "historicalVulnerabilities",
+      render: (_: unknown, record: any) => {
+        const count = Number(record.historicalVulnCount || 0);
+        if (!count) {
+          return <Badge status="default" text="未关联到历史漏洞" />;
+        }
+
+        const matches = Array.isArray(record.historicalVulnMatches)
+          ? record.historicalVulnMatches
+          : [];
+        const tooltipContent = (
+          <div style={{ maxWidth: 420 }}>
+            {matches.slice(0, 4).map((item: any) => (
+              <div
+                key={`${item.vulnerability_id}-${item.title}`}
+                style={{ marginBottom: 8 }}
+              >
+                <div style={{ fontWeight: 700 }}>
+                  {item.vulnerability_id || item.cve || "漏洞条目"}
+                </div>
+                <div>{item.title}</div>
+                <div style={{ color: "#bfbfbf", fontSize: 12 }}>
+                  {item.severity} · {item.affected_versions}
+                </div>
+              </div>
+            ))}
+            {count > 4 ? (
+              <div style={{ color: "#bfbfbf" }}>其余 {count - 4} 条未展开</div>
+            ) : null}
+          </div>
+        );
+
+        return (
+          <Space size={6} wrap>
+            <Tooltip title={tooltipContent}>
+              <Tag color="volcano">关联 {count} 条</Tag>
+            </Tooltip>
+            {record.historicalVulnMaxSeverity ? (
+              <Tag
+                color={
+                  record.historicalVulnMaxSeverity === "Critical"
+                    ? "red"
+                    : record.historicalVulnMaxSeverity === "High"
+                      ? "orange"
+                      : "gold"
+                }
+              >
+                {record.historicalVulnMaxSeverity}
+              </Tag>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
       title: "最后发现",
       dataIndex: "lastSeen",
       key: "lastSeen",
@@ -683,99 +752,41 @@ export default function Exposure() {
             <Card
               style={{ width: "100%", height: "100%" }}
               bodyStyle={{ height: "100%" }}
+            >
+              <div
+                style={{
+                  minHeight: 96,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: 10,
+                }}
               >
-                <div
-                  style={{
-                    minHeight: 96,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    gap: 10,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
-                      暴露服务总数
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: "#1677ff" }}>
-                      {(overview?.totalExposedServices || 0).toLocaleString()}
-                    </div>
+                <div>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    历史暴露服务总数
                   </div>
-                  <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
-                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
-                      活跃实例数量
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: "#52c41a" }}>
-                      {(overview?.activeInstances || 0).toLocaleString()}
-                    </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#1677ff" }}
+                  >
+                    {(overview?.totalExposedServices || 0).toLocaleString()}
                   </div>
                 </div>
-            </Card>
-          </Col>
-          <Col span={6} style={{ display: "flex" }}>
-            <Card
-              style={{ width: "100%", height: "100%" }}
-              bodyStyle={{ height: "100%" }}
-              >
-                <div
-                  style={{
-                    minHeight: 96,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    gap: 10,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
-                      境内暴露总数
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: "#13a8a8" }}>
-                      {(overview?.chinaExposedServices || 0).toLocaleString()}
-                    </div>
+                <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    当前活跃实例总数
                   </div>
-                  <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
-                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
-                      境内活跃实例数量
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: "#08979c" }}>
-                      {(overview?.chinaActiveInstances || 0).toLocaleString()}
-                    </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#52c41a" }}
+                  >
+                    {(overview?.activeInstances || 0).toLocaleString()}
                   </div>
                 </div>
-            </Card>
-          </Col>
-          <Col span={6} style={{ display: "flex" }}>
-            <Card
-              style={{ width: "100%", height: "100%" }}
-              bodyStyle={{ height: "100%" }}
-              >
-                <div
-                  style={{
-                    minHeight: 96,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    gap: 10,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
-                      覆盖国家/地区
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: "#722ed1" }}>
-                      {(geographicData?.world?.length || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
-                    <div style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}>
-                      涉及省市
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: "#531dab" }}>
-                      {(overview?.provinceCount || 0).toLocaleString()} / {(overview?.cityCount || 0).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
+              </div>
             </Card>
           </Col>
           <Col span={6} style={{ display: "flex" }}>
@@ -788,18 +799,125 @@ export default function Exposure() {
                   minHeight: 96,
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "space-between",
+                  justifyContent: "center",
+                  gap: 10,
                 }}
               >
-                <Statistic
-                  title="最新扫描"
-                  value={
-                    overview?.lastScanTime
-                      ? new Date(overview.lastScanTime).toLocaleString()
-                      : "-"
-                  }
-                  valueStyle={{ color: "#722ed1", fontSize: 26, fontWeight: 600 }}
-                />
+                <div>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    境内暴露总数
+                  </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#13a8a8" }}
+                  >
+                    {(overview?.chinaExposedServices || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    境内活跃实例数量
+                  </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#08979c" }}
+                  >
+                    {(overview?.chinaActiveInstances || 0).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </Col>
+          <Col span={6} style={{ display: "flex" }}>
+            <Card
+              style={{ width: "100%", height: "100%" }}
+              bodyStyle={{ height: "100%" }}
+            >
+              <div
+                style={{
+                  minHeight: 96,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    覆盖国家/地区
+                  </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#722ed1" }}
+                  >
+                    {(geographicData?.world?.length || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    涉及省市
+                  </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#531dab" }}
+                  >
+                    {(overview?.provinceCount || 0).toLocaleString()} /{" "}
+                    {(overview?.cityCount || 0).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </Col>
+          <Col span={6} style={{ display: "flex" }}>
+            <Card
+              style={{ width: "100%", height: "100%" }}
+              bodyStyle={{ height: "100%" }}
+            >
+              <div
+                style={{
+                  minHeight: 96,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    可关联历史漏洞实例
+                  </div>
+                  <div
+                    style={{ fontSize: 26, fontWeight: 600, color: "#fa541c" }}
+                  >
+                    {(
+                      overview?.historicalVulnerableInstances || 0
+                    ).toLocaleString()}
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
+                  <div
+                    style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
+                  >
+                    活跃且可关联实例 / 命中漏洞条目
+                  </div>
+                  <div
+                    style={{ fontSize: 20, fontWeight: 600, color: "#cf1322" }}
+                  >
+                    {(
+                      overview?.historicalVulnerableActiveInstances || 0
+                    ).toLocaleString()}{" "}
+                    /{" "}
+                    {(
+                      overview?.historicalMatchedVulnerabilityCount || 0
+                    ).toLocaleString()}
+                  </div>
+                </div>
               </div>
             </Card>
           </Col>
@@ -1176,6 +1294,33 @@ export default function Exposure() {
               <Option value="all">全部版本</Option>
               <Option value="detected">已探测版本</Option>
               <Option value="undetected">未探测版本</Option>
+            </Select>
+            <Select
+              placeholder="历史漏洞关联"
+              style={{ width: 170 }}
+              value={historicalVulnFilter}
+              onChange={(value) => {
+                setHistoricalVulnFilter(value);
+                setCurrentPage(1);
+              }}
+            >
+              <Option value="all">全部实例</Option>
+              <Option value="matched">可关联历史漏洞</Option>
+              <Option value="unmatched">未关联历史漏洞</Option>
+            </Select>
+            <Select
+              placeholder="关联漏洞数量"
+              style={{ width: 170 }}
+              value={historicalVulnCountFilter}
+              onChange={(value) => {
+                setHistoricalVulnCountFilter(value);
+                setCurrentPage(1);
+              }}
+            >
+              <Option value="all">关联漏洞数量</Option>
+              <Option value="1-2">1-2 条</Option>
+              <Option value="3-9">3-9 条</Option>
+              <Option value="10+">10 条以上</Option>
             </Select>
             <Button icon={<SearchOutlined />}>高级搜索</Button>
           </Space>

@@ -23,6 +23,12 @@ export default [
     ],
   },
   {
+    path: '/home',
+    name: 'home',
+    icon: 'home',
+    component: './Home',
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     icon: 'dashboard',
@@ -78,7 +84,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/dashboard',
+    redirect: '/home',
   },
   {
     path: '*',

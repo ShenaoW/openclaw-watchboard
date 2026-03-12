@@ -147,6 +147,9 @@ def setup_exposure_database():
             is_china_instance TEXT,
             province TEXT,
             cn_city TEXT,
+            historical_vuln_count INTEGER DEFAULT 0,
+            historical_vuln_max_severity TEXT,
+            historical_vuln_matches TEXT,
             risk_level TEXT,
             risk_score INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -171,6 +174,9 @@ def setup_exposure_database():
             medium_count INTEGER,
             low_count INTEGER,
             country_count INTEGER,
+            historical_vulnerable_instances INTEGER DEFAULT 0,
+            historical_vulnerable_active_instances INTEGER DEFAULT 0,
+            historical_matched_vulnerability_count INTEGER DEFAULT 0,
             last_scan_time TEXT,
             generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -244,18 +250,31 @@ def setup_exposure_database():
         cursor.execute("ALTER TABLE exposure_instances ADD COLUMN province TEXT")
     if "cn_city" not in existing_exposure_instances:
         cursor.execute("ALTER TABLE exposure_instances ADD COLUMN cn_city TEXT")
+    if "historical_vuln_count" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN historical_vuln_count INTEGER DEFAULT 0")
+    if "historical_vuln_max_severity" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN historical_vuln_max_severity TEXT")
+    if "historical_vuln_matches" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN historical_vuln_matches TEXT")
 
     existing_exposure_summary = {
         row[1] for row in cursor.execute("PRAGMA table_info(exposure_summary)").fetchall()
     }
     if "active_instances" not in existing_exposure_summary:
         cursor.execute("ALTER TABLE exposure_summary ADD COLUMN active_instances INTEGER")
+    if "historical_vulnerable_instances" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN historical_vulnerable_instances INTEGER DEFAULT 0")
+    if "historical_vulnerable_active_instances" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN historical_vulnerable_active_instances INTEGER DEFAULT 0")
+    if "historical_matched_vulnerability_count" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN historical_matched_vulnerability_count INTEGER DEFAULT 0")
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_status ON exposure_instances(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_country ON exposure_instances(country_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_risk ON exposure_instances(risk_level)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_port ON exposure_instances(port)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_last_seen ON exposure_instances(last_seen)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_historical_vuln_count ON exposure_instances(historical_vuln_count)")
 
     conn.commit()
     conn.close()
