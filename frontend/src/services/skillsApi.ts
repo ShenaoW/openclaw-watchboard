@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 
 export interface SkillStats {
   totalSkills: number;
-  sourceDistribution: {
-    clawhub: number;
-    skillsRest: number;
-    skillsmp: number;
-    other: number;
-  };
+  sourceDistribution: Array<{
+    source: string;
+    count: number;
+  }>;
   securityDistribution: {
     safe: number;
     suspicious: number;
@@ -51,7 +49,7 @@ export interface SkillDetail {
   securityScore: number;
   permissions: string[];
   repository: string;
-  source: 'clawhub' | 'skills.rest' | 'skillsmp' | 'other';
+  source: 'clawhub' | 'skills.rest' | 'skillsmp' | 'skills.sh' | 'gendigital' | 'other' | string;
   classification: 'safe' | 'suspicious' | 'malicious' | 'unknown';
 }
 
@@ -107,6 +105,8 @@ export const skillsAPI = {
     const endpoint =
       filters?.classification === 'malicious'
         ? '/skills/malicious'
+        : filters?.classification === 'unknown'
+          ? '/skills/pending'
         : filters?.classification === 'suspicious'
           ? '/skills/suspicious'
           : '/skills/trusted';

@@ -251,7 +251,8 @@ class ExposureDatabaseService {
     return {
       services: rows.map((row, index) => ({
         id: `${row.ip_port}-${offset + index}`,
-        ip: row.ip,
+        ip: row.masked_ip || row.ip,
+        maskedIp: row.masked_ip || row.ip,
         hostname: row.assistant_name || null,
         port: row.port,
         service: row.service,
@@ -572,7 +573,8 @@ class ExposureDatabaseService {
       target,
       found: rows.length > 0,
       services: rows.map((row) => ({
-        ip: row.ip,
+        ip: row.masked_ip || row.ip,
+        maskedIp: row.masked_ip || row.ip,
         port: row.port,
         service: row.service,
         banner: row.assistant_name ? `OpenClaw Assistant: ${row.assistant_name}` : 'OpenClaw service',

@@ -162,7 +162,7 @@ def analyze_clawhub_skills():
                 skill_id = f"clawhub-{owner_dir.name}-{skill_name}"
 
                 # 最后更新时间
-                last_updated = datetime.now()
+                last_updated = ""
                 if meta_data.get('latest', {}).get('publishedAt'):
                     try:
                         last_updated = datetime.fromtimestamp(meta_data['latest']['publishedAt'] / 1000)

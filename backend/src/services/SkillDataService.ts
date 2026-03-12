@@ -105,6 +105,24 @@ class SkillDataService {
       `,
     );
 
+    const sourceRows = await this.query<any>(
+      `
+      SELECT
+        CASE
+          WHEN source LIKE 'skillsmp%' THEN 'skillsmp'
+          ELSE source
+        END as source,
+        COUNT(*) as count
+      FROM skills
+      GROUP BY
+        CASE
+          WHEN source LIKE 'skillsmp%' THEN 'skillsmp'
+          ELSE source
+        END
+      ORDER BY count DESC, source ASC
+      `,
+    );
+
     const popularRows = await this.query<any>(
       `
       SELECT source, name, downloads, rating, classification
@@ -114,12 +132,7 @@ class SkillDataService {
       `,
     );
 
-    const popularSkillsBySource: Record<string, any[]> = {
-      clawhub: [],
-      'skills.rest': [],
-      skillsmp: [],
-      other: [],
-    };
+    const popularSkillsBySource: Record<string, any[]> = {};
 
     for (const row of popularRows) {
       const source = this.normalizeSource(row.source);
@@ -138,15 +151,10 @@ class SkillDataService {
 
     return {
       totalSkills: stats.total_skills,
-      sourceDistribution: {
-        clawhub: stats.source_clawhub,
-        skillsRest: stats.source_skills_rest,
-        skillsmp: stats.source_skillsmp,
-        other: Math.max(
-          stats.total_skills - stats.source_clawhub - stats.source_skills_rest - stats.source_skillsmp,
-          0,
-        ),
-      },
+      sourceDistribution: sourceRows.map((row) => ({
+        source: this.normalizeSource(row.source),
+        count: Number(row.count || 0),
+      })),
       securityDistribution: {
         safe: stats.classification_safe,
         suspicious: stats.classification_suspicious,
@@ -252,6 +260,10 @@ class SkillDataService {
 
   async getMaliciousSkills(filters: any) {
     return this.getSkills({ ...filters, classification: 'malicious' });
+  }
+
+  async getPendingSkills(filters: any) {
+    return this.getSkills({ ...filters, classification: 'unknown' });
   }
 
   async getSkillById(skillId: string) {

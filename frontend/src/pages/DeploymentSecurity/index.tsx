@@ -61,7 +61,7 @@ const commandExample = `npm run scan:deployment-security
 python3 tools/openclaw-scan/scan.py --report-path ./reports/openclaw.md --summary-path ./reports/openclaw.json
 python3 tools/openclaw-scan/scan.py --quiet`;
 
-const downloadUrl = '/downloads/openclaw-scan.zip';
+const repositoryUrl = 'https://gitcode.com/shenaowang/openclaw-scan.git';
 
 export default function DeploymentSecurity() {
   const sectionRows = sampleReport.sections.map((section) => ({
@@ -90,8 +90,8 @@ export default function DeploymentSecurity() {
                 message="建议直接在 OpenClaw 实际部署节点执行，以获得真实的进程、端口、配置和文件系统审计结果。"
               />
               <Space wrap>
-                <Button type="primary" icon={<DownloadOutlined />} href={downloadUrl}>
-                  下载 openclaw-scan
+                <Button type="primary" icon={<DownloadOutlined />} href={repositoryUrl} target="_blank" rel="noreferrer">
+                  前往 GitCode 仓库
                 </Button>
               </Space>
               <Card
@@ -217,7 +217,9 @@ export default function DeploymentSecurity() {
                 <Card size="small">
                   <Space align="center">
                     <DownloadOutlined style={{ color: '#1677ff' }} />
-                    <Typography.Link href={downloadUrl}>下载独立工具压缩包</Typography.Link>
+                    <Typography.Link href={repositoryUrl} target="_blank" rel="noreferrer">
+                      查看 GitCode 仓库
+                    </Typography.Link>
                   </Space>
                 </Card>
               </Space>

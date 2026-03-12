@@ -278,6 +278,16 @@ def resolve_csv_path() -> Path:
     return LEGACY_CSV_FILE
 
 
+def mask_ip_third_segment(ip: str) -> str:
+    parts = ip.split(".")
+    if len(parts) != 4:
+        return ip
+    if not all(part.isdigit() for part in parts):
+        return ip
+    parts[2] = "*"
+    return ".".join(parts)
+
+
 def load_runtime_probe_map() -> Dict[str, Dict[str, str]]:
     if not ALIVE_CSV_FILE.exists():
         return {}
@@ -436,6 +446,7 @@ def analyze_exposure_data():
             total += 1
 
             ip, port_str = ip_port.rsplit(":", 1)
+            masked_ip = mask_ip_third_segment(ip)
             port = int(port_str) if port_str.isdigit() else 0
             service = service_name_for_port(port)
 
@@ -499,17 +510,18 @@ def analyze_exposure_data():
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO exposure_instances (
-                    ip_port, ip, port, service, assistant_name, country, country_name,
+                    ip_port, ip, masked_ip, port, service, assistant_name, country, country_name,
                     authenticated, active, status, asn, organization, isp, first_seen, last_seen,
                     credentials_leaked, has_mcp, apt_groups, apt_group_count, cve_list, cve_count,
                     scan_time, domains, runtime_status, server_version, is_china_instance, province, cn_city,
                     historical_vuln_count, historical_vuln_max_severity, historical_vuln_matches,
                     risk_level, risk_score, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
                 (
                     ip_port,
                     ip,
+                    masked_ip,
                     port,
                     service,
                     (row.get("assistant_name") or "").strip(),

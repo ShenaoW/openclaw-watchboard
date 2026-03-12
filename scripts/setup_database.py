@@ -121,6 +121,7 @@ def setup_exposure_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ip_port TEXT NOT NULL UNIQUE,
             ip TEXT,
+            masked_ip TEXT,
             port INTEGER,
             service TEXT,
             assistant_name TEXT,
@@ -240,6 +241,8 @@ def setup_exposure_database():
     existing_exposure_instances = {
         row[1] for row in cursor.execute("PRAGMA table_info(exposure_instances)").fetchall()
     }
+    if "masked_ip" not in existing_exposure_instances:
+        cursor.execute("ALTER TABLE exposure_instances ADD COLUMN masked_ip TEXT")
     if "runtime_status" not in existing_exposure_instances:
         cursor.execute("ALTER TABLE exposure_instances ADD COLUMN runtime_status TEXT")
     if "server_version" not in existing_exposure_instances:

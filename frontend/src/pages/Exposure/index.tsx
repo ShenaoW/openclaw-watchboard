@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Col,
-  Input,
   Row,
   Select,
   Space,
@@ -20,7 +19,6 @@ import {
   PlusOutlined,
   ReloadOutlined,
   ScanOutlined,
-  SearchOutlined,
 } from "@ant-design/icons";
 import { Column, Line } from "@ant-design/charts";
 import { useEffect, useRef, useState } from "react";
@@ -40,7 +38,6 @@ import {
   useExposureTrends,
 } from "../../services/exposureApi";
 
-const { Search } = Input;
 const { Option } = Select;
 
 const countryNameMap: Record<string, string> = {
@@ -243,7 +240,6 @@ function getChinaDistributionColor(count: number, maxCount: number) {
 }
 
 export default function Exposure() {
-  const [searchTarget, setSearchTarget] = useState("");
   const [runtimeStatusFilter, setRuntimeStatusFilter] = useState("all");
   const [chinaScopeFilter, setChinaScopeFilter] = useState("all");
   const [versionStatusFilter, setVersionStatusFilter] = useState("all");
@@ -299,7 +295,6 @@ export default function Exposure() {
     loading: servicesLoading,
     error: servicesError,
   } = useExposedServices({
-    search: searchTarget,
     runtimeStatus:
       runtimeStatusFilter === "all" ? undefined : runtimeStatusFilter,
     chinaScope: chinaScopeFilter === "all" ? undefined : chinaScopeFilter,
@@ -587,9 +582,11 @@ export default function Exposure() {
   const columns = [
     {
       title: "IP地址",
-      dataIndex: "ip",
-      key: "ip",
-      render: (ip: string) => <code style={{ color: "#1677ff" }}>{ip}</code>,
+      dataIndex: "maskedIp",
+      key: "maskedIp",
+      render: (_: string, record: any) => (
+        <code style={{ color: "#1677ff" }}>{record.maskedIp || record.ip}</code>
+      ),
     },
     {
       title: "主机名",
@@ -890,7 +887,7 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
                   >
-                    可关联历史漏洞实例
+                    活跃且存在漏洞的暴露实例
                   </div>
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#fa541c" }}
@@ -904,15 +901,11 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
                   >
-                    活跃且可关联实例 / 命中漏洞条目
+                    合计历史漏洞条目数
                   </div>
                   <div
-                    style={{ fontSize: 20, fontWeight: 600, color: "#cf1322" }}
+                    style={{ fontSize: 26, fontWeight: 600, color: "#cf1322" }}
                   >
-                    {(
-                      overview?.historicalVulnerableActiveInstances || 0
-                    ).toLocaleString()}{" "}
-                    /{" "}
                     {(
                       overview?.historicalMatchedVulnerabilityCount || 0
                     ).toLocaleString()}
@@ -1244,17 +1237,7 @@ export default function Exposure() {
 
       <Card title="📋 暴露服务详情">
         <div style={{ marginBottom: 16 }}>
-          <Space>
-            <Search
-              placeholder="搜索IP地址或主机名"
-              allowClear
-              style={{ width: 300 }}
-              onSearch={(value) => {
-                setSearchTarget(value);
-                setCurrentPage(1);
-              }}
-              defaultValue={searchTarget}
-            />
+          <Space wrap>
             <Select
               placeholder="筛选运行状态"
               style={{ width: 150 }}
@@ -1322,7 +1305,6 @@ export default function Exposure() {
               <Option value="3-9">3-9 条</Option>
               <Option value="10+">10 条以上</Option>
             </Select>
-            <Button icon={<SearchOutlined />}>高级搜索</Button>
           </Space>
         </div>
 

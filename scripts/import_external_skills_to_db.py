@@ -4,8 +4,9 @@
 import json
 import re
 import sqlite3
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 
 SCRIPT_DIR = Path(__file__).parent
@@ -18,6 +19,7 @@ GENDIGITAL_FILES = [
     DATA_DIR / "gendigital_suspicious.json",
     DATA_DIR / "gendigital_malicious.json",
 ]
+KOI_MALICIOUS_FILE = DATA_DIR / "koi_malicious_skills.txt"
 
 
 def categorize_skill(skill_name: str, description: str = "") -> str:
@@ -45,11 +47,20 @@ def categorize_skill(skill_name: str, description: str = "") -> str:
     return "Utility"
 
 
-def normalize_date(value: str | None):
+def normalize_date(value: Optional[str]) -> str:
     if not value:
-        return datetime.now(UTC).strftime("%Y-%m-%d")
+        return ""
     match = re.match(r"(\d{4}-\d{2}-\d{2})", value)
     return match.group(1) if match else value
+
+
+def make_skills_sh_id(source: str, skill_id: str, fallback_name: str) -> str:
+    return f"skills.sh-{source.replace('/', '-')}-{(skill_id or fallback_name or 'unknown')}"
+
+
+def make_skills_sh_repository(source: str, skill_id: str) -> str:
+    repository = f"https://skills.sh/{source.strip()}/{skill_id.strip()}".rstrip("/")
+    return repository if repository != "https://skills.sh" else ""
 
 
 def infer_skills_sh_classification(item: dict) -> str:
@@ -78,19 +89,26 @@ def infer_skills_sh_classification(item: dict) -> str:
 
 
 def import_skills_sh(cursor):
-    if not SKILLS_SH_FILE.exists():
-        print("ℹ️ 未找到 skills.sh 数据文件，跳过")
-        return 0
-
-    payload = json.loads(SKILLS_SH_FILE.read_text(encoding="utf-8"))
-    skills = payload.get("skills", [])
     ranking_map = {}
+    ranking_payload = {}
     if SKILLS_SH_RANKINGS_FILE.exists():
         ranking_payload = json.loads(SKILLS_SH_RANKINGS_FILE.read_text(encoding="utf-8"))
         for ranking in ranking_payload.get("skills", []):
             key = f"{ranking.get('source', '')}::{ranking.get('skillId', '')}"
             ranking_map[key] = ranking
+
+    if not SKILLS_SH_FILE.exists() and not ranking_map:
+        print("ℹ️ 未找到 skills.sh 数据文件，跳过")
+        return 0
+
+    payload = {"skills": []}
+    if SKILLS_SH_FILE.exists():
+        payload = json.loads(SKILLS_SH_FILE.read_text(encoding="utf-8"))
+
+    skills = payload.get("skills", [])
     count = 0
+    ranking_only_count = 0
+    imported_keys = set()
 
     cursor.execute("DELETE FROM skills WHERE source = 'skills.sh'")
 
@@ -98,19 +116,18 @@ def import_skills_sh(cursor):
         agent_trust_hub = item.get("agentTrustHub") or {}
         snyk_data = item.get("snyk") or {}
         socket_data = item.get("socket") or {}
-        skill_id = f"skills.sh-{item.get('source', 'unknown').replace('/', '-')}-{item.get('skillId', item.get('name', 'unknown'))}"
+        source = item.get("source", "unknown")
+        raw_skill_id = item.get("skillId", item.get("name", "unknown"))
+        skill_id = make_skills_sh_id(source, raw_skill_id, item.get("name", "unknown"))
         name = item.get("displayName") or item.get("name") or item.get("skillId") or "unknown"
         description = item.get("summary") or ""
         version = ""
-        maintainer = (item.get("source") or "").split("/")[0] if item.get("source") else "Unknown"
-        repository = f"https://skills.sh/{item.get('source', '').strip()}/{item.get('skillId', '').strip()}".rstrip("/")
+        maintainer = source.split("/")[0] if source else "Unknown"
+        repository = make_skills_sh_repository(source, item.get("skillId", ""))
         classification = infer_skills_sh_classification(item)
-        ranking = ranking_map.get(f"{item.get('source', '')}::{item.get('skillId', '')}", {})
-        last_updated = normalize_date(
-            agent_trust_hub.get("analyzedAt")
-            or snyk_data.get("analyzedAt")
-            or socket_data.get("analyzedAt")
-        )
+        ranking_key = f"{source}::{item.get('skillId', '')}"
+        ranking = ranking_map.get(ranking_key, {})
+        last_updated = ""
 
         cursor.execute(
             """
@@ -139,12 +156,56 @@ def import_skills_sh(cursor):
                 json.dumps([]),
                 json.dumps([]),
                 "",
-                datetime.now(UTC).strftime("%Y-%m-%d"),
+                datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             ),
         )
+        imported_keys.add(ranking_key)
         count += 1
 
-    print(f"✅ 已导入 skills.sh: {count} 条")
+    for ranking in ranking_payload.get("skills", []):
+        ranking_key = f"{ranking.get('source', '')}::{ranking.get('skillId', '')}"
+        if ranking_key in imported_keys:
+            continue
+
+        source = ranking.get("source", "unknown")
+        raw_skill_id = ranking.get("skillId", ranking.get("name", "unknown"))
+        name = ranking.get("name") or ranking.get("skillId") or "unknown"
+        maintainer = source.split("/")[0] if source else "Unknown"
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO skills
+            (id, name, version, description, category, maintainer, source, classification,
+             security_score, downloads, rating, verified, last_updated, permissions,
+             repository, file_structure, dependencies, skill_content, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                make_skills_sh_id(source, raw_skill_id, name),
+                name,
+                "",
+                "",
+                categorize_skill(name, ""),
+                maintainer,
+                "skills.sh",
+                "unknown",
+                0,
+                int(ranking.get("installs") or 0),
+                0.0,
+                False,
+                "",
+                json.dumps([]),
+                make_skills_sh_repository(source, ranking.get("skillId", "")),
+                json.dumps([]),
+                json.dumps([]),
+                "",
+                datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            ),
+        )
+        ranking_only_count += 1
+        count += 1
+
+    print(f"✅ 已导入 skills.sh: {count} 条（审计 {count - ranking_only_count}，排名补充 {ranking_only_count}）")
     return count
 
 
@@ -188,18 +249,72 @@ def import_gendigital(cursor):
                     0,
                     0.0,
                     item.get("status") == "verified",
-                    normalize_date(item.get("createdAt")),
+                    normalize_date(item.get("updatedAt") or item.get("lastUpdated")),
                     json.dumps([]),
                     item.get("url") or "",
                     json.dumps([]),
                     json.dumps([]),
                     item.get("summary") or "",
-                    datetime.now(UTC).strftime("%Y-%m-%d"),
+                    datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 ),
             )
             total_count += 1
 
     print(f"✅ 已导入 GenDigital: {total_count} 条")
+    return total_count
+
+
+def import_koi(cursor):
+    if not KOI_MALICIOUS_FILE.exists():
+        print("ℹ️ 未找到 KOI 恶意技能文件，跳过")
+        return 0
+
+    cursor.execute("DELETE FROM skills WHERE source = 'koi'")
+    total_count = 0
+    imported_names = set()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    for raw_line in KOI_MALICIOUS_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or "|" not in line:
+            continue
+
+        campaign, names = line.split("|", 1)
+        for skill_name in [item.strip() for item in names.split(",") if item.strip()]:
+            imported_names.add(skill_name)
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO skills
+                (id, name, version, description, category, maintainer, source, classification,
+                 security_score, downloads, rating, verified, last_updated, permissions,
+                 repository, file_structure, dependencies, skill_content, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"koi-{skill_name}",
+                    skill_name,
+                    "unknown",
+                    "",
+                    "unknown",
+                    "unknown",
+                    "koi",
+                    "malicious",
+                    0,
+                    0,
+                    0.0,
+                    False,
+                    "",
+                    json.dumps([]),
+                    "unknown",
+                    json.dumps([]),
+                    json.dumps([]),
+                    campaign.strip(),
+                    today,
+                ),
+            )
+            total_count += 1
+
+    print(f"✅ 已导入 KOI 恶意技能: {total_count} 条")
     return total_count
 
 
@@ -209,6 +324,7 @@ def main():
 
     skills_sh_count = import_skills_sh(cursor)
     gendigital_count = import_gendigital(cursor)
+    koi_count = import_koi(cursor)
 
     conn.commit()
     conn.close()
@@ -216,6 +332,7 @@ def main():
     print("🎉 外部 Skills 数据导入完成")
     print(f"   skills.sh: {skills_sh_count}")
     print(f"   gendigital: {gendigital_count}")
+    print(f"   koi: {koi_count}")
 
 
 if __name__ == "__main__":

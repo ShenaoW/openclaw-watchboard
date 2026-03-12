@@ -176,16 +176,18 @@ export default function HomePage() {
         </Space>
       </div>
 
-      <Row gutter={[20, 20]} style={{ marginTop: 20 }}>
-        <Col xs={24} xl={14}>
+      <Row gutter={[20, 20]} style={{ marginTop: 20 }} align="stretch">
+        <Col xs={24} xl={14} style={{ display: "flex" }}>
           <Card
             style={{
               borderRadius: 28,
               border: "1px solid #dbeafe",
               boxShadow: "0 14px 36px rgba(37, 99, 235, 0.08)",
               background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+              width: "100%",
+              height: "100%",
             }}
-            bodyStyle={{ padding: 28 }}
+            bodyStyle={{ padding: 28, height: "100%" }}
             title={
               <Space size={10}>
                 <TeamOutlined style={{ color: "#1d4ed8" }} />
@@ -193,19 +195,13 @@ export default function HomePage() {
               </Space>
             }
           >
-            <Paragraph
+            <div
               style={{
-                fontSize: 15,
-                lineHeight: 1.9,
-                marginBottom: 16,
-                color: "#334155",
+                display: "flex",
+                flexDirection: "column",
+                height: "100%",
               }}
             >
-              华中科技大学 SecurityPEIDE
-              研究团队关注于新兴软件系统中的安全、隐私和可靠性问题，长期围绕大模型软件系统安全、智能体组件风险发现与监测开展研究与工程落地，团队在相关方向积累深厚，在软件工程和程序语言、系统安全、网络和系统度量领域的顶会论文成果在国内外名列前茅。
-            </Paragraph>
-            <Divider style={{ margin: "18px 0", borderColor: "#dbeafe" }} />
-            <Space direction="vertical" size={14} style={{ width: "100%" }}>
               <div>
                 <Text strong style={{ color: "#0f172a" }}>
                   联合研发单位
@@ -277,11 +273,25 @@ export default function HomePage() {
                   </Col>
                 </Row>
               </div>
-            </Space>
+              <Divider style={{ margin: "18px 0", borderColor: "#dbeafe" }} />
+              <div
+                style={{
+                  padding: 18,
+                  borderRadius: 20,
+                  background:
+                    "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+                  border: "1px dashed #93c5fd",
+                  color: "#475569",
+                  lineHeight: 1.8,
+                }}
+              >
+                本平台仍处于持续建设与迭代完善过程中。若您在使用过程中发现数据缺漏、内容表述不准确或其它问题，欢迎联系我们沟通勘误。
+              </div>
+            </div>
           </Card>
         </Col>
 
-        <Col xs={24} xl={10}>
+        <Col xs={24} xl={10} style={{ display: "flex" }}>
           <Card
             style={{
               borderRadius: 28,
@@ -289,8 +299,9 @@ export default function HomePage() {
               border: "1px solid #dbeafe",
               boxShadow: "0 14px 36px rgba(37, 99, 235, 0.08)",
               background: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+              width: "100%",
             }}
-            bodyStyle={{ padding: 28 }}
+            bodyStyle={{ padding: 28, height: "100%" }}
             title={
               <Space size={10}>
                 <MailOutlined style={{ color: "#1d4ed8" }} />
@@ -303,21 +314,29 @@ export default function HomePage() {
                 <div
                   key={contact.email}
                   style={{
-                    padding: 18,
-                    borderRadius: 20,
+                    padding: "16px 16px",
+                    minHeight: 88,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    borderRadius: 16,
                     background:
                       "linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)",
                     border: "1px solid #dbeafe",
                     boxShadow: "0 10px 26px rgba(59, 130, 246, 0.08)",
                   }}
                 >
-                  <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
+                  <Text strong style={{ fontSize: 15, color: "#0f172a" }}>
                     {contact.name}
                   </Text>
-                  <div style={{ marginTop: 8 }}>
+                  <div style={{ marginTop: 4 }}>
                     <a
                       href={`mailto:${contact.email}`}
-                      style={{ color: "#2563eb", fontWeight: 600 }}
+                      style={{
+                        color: "#2563eb",
+                        fontWeight: 600,
+                        fontSize: 13,
+                      }}
                     >
                       {contact.email}
                     </a>

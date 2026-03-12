@@ -50,6 +50,22 @@ export class SkillController {
     }
   }
 
+  async getPendingSkills(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await skillDataService.getPendingSkills({
+        page: Number(req.query.page || 1),
+        limit: Number(req.query.limit || 20),
+        source: req.query.source as string | undefined,
+        category: req.query.category as string | undefined,
+        search: req.query.search as string | undefined,
+      });
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getSkillAnalysis(req: Request, res: Response, next: NextFunction) {
     try {
       const skill = await skillDataService.getSkillById(req.params.skillId);

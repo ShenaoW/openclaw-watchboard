@@ -19,7 +19,7 @@
     "refresh:databases": "python3 scripts/run_analysis.py",
     "refresh:skills-db": "python3 scripts/setup_database.py && python3 scripts/analyze_clawhub_skills.py && python3 scripts/analyze_csv_skills.py && python3 scripts/fetch_skills_sh_data.py && python3 scripts/fetch_skills_sh_rankings.py && python3 scripts/fetch_gendigital_skills.py --classification safe && python3 scripts/import_external_skills_to_db.py && python3 scripts/generate_statistics.py",
     "refresh:risks-db": "python3 scripts/setup_database.py && python3 scripts/analyze_vulnerabilities.py && python3 scripts/import_vulnerabilities_to_db.py",
-    "refresh:exposure-db": "python3 scripts/analyze_exposure_data.py",
+    "refresh:exposure-db": "python3 scripts/setup_database.py && python3 scripts/analyze_exposure_data.py",
     "scan:deployment-security": "python3 tools/openclaw-scan/scan.py",
     "package:openclaw-scan": "cd tools/openclaw-scan && zip -r ../../frontend/public/downloads/openclaw-scan.zip . -x '*.DS_Store' 'openclaw_security_report.md' '__pycache__/*' '*.pyc'",
     "sync:databases": "./scripts/sync_databases_to_tencent.sh",

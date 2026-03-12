@@ -17,6 +17,9 @@ router.get('/suspicious', skillController.getSuspiciousSkills.bind(skillControll
 // 获取恶意 Skill 检测结果
 router.get('/malicious', skillController.getMaliciousSkills.bind(skillController));
 
+// 获取待检测 Skill 列表
+router.get('/pending', skillController.getPendingSkills.bind(skillController));
+
 // 获取 Skill 安全分析报告
 router.get('/analysis/:skillId', skillController.getSkillAnalysis.bind(skillController));
 

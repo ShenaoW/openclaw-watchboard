@@ -18,7 +18,7 @@ import { useExposureOverview } from "../../services/exposureApi";
 import { riskAPI, type VulnerabilityItem } from "../../services/riskApi";
 import { useSkillsData } from "../../services/skillsApi";
 
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 
 const countryNameMap: Record<string, string> = {
   "China mainland": "中国大陆",
@@ -124,7 +124,6 @@ export default function Dashboard() {
   }, [vulnerabilities]);
 
   const topCountries = overview?.topCountries || [];
-  const topDevelopers = skillsStats?.topDevelopers?.slice(0, 5) || [];
   const securityDistribution = skillsStats?.securityDistribution;
 
   return (
@@ -259,8 +258,13 @@ export default function Dashboard() {
                 <Space size={8} wrap>
                   <SafetyCertificateOutlined style={{ color: "#fa541c" }} />
                   <Text>
-                    可疑{" "}
-                    {(securityDistribution?.suspicious || 0).toLocaleString()}
+                    总计{" "}
+                    {(
+                      (securityDistribution?.safe || 0) +
+                      (securityDistribution?.suspicious || 0) +
+                      (securityDistribution?.malicious || 0) +
+                      (securityDistribution?.unknown || 0)
+                    ).toLocaleString()}
                   </Text>
                 </Space>
               </div>
@@ -403,9 +407,9 @@ export default function Dashboard() {
                       color: "#52c41a",
                     },
                     {
-                      label: "可疑 Skills",
-                      value: securityDistribution.suspicious,
-                      color: "#faad14",
+                      label: "待检测 Skills",
+                      value: securityDistribution.unknown || 0,
+                      color: "#1677ff",
                     },
                     {
                       label: "恶意 Skills",
@@ -415,7 +419,6 @@ export default function Dashboard() {
                   ].map((item) => {
                     const total =
                       securityDistribution.safe +
-                      securityDistribution.suspicious +
                       securityDistribution.malicious +
                       (securityDistribution.unknown || 0);
                     const percent =
@@ -451,116 +454,6 @@ export default function Dashboard() {
           </Col>
         </Row>
 
-        <Row gutter={[16, 22]} align="stretch" style={{ marginTop: 8 }}>
-          <Col xs={24} xl={12} style={{ display: "flex" }}>
-            <Card
-              title="Top 开发者风险画像"
-              style={{ width: "100%", height: "100%", borderRadius: 20 }}
-              bodyStyle={{ height: "100%" }}
-            >
-              {topDevelopers.length > 0 ? (
-                <div style={{ paddingTop: 4 }}>
-                  {topDevelopers.map((developer) => (
-                    <div
-                      key={developer.developer}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "minmax(0, 1fr) auto auto auto",
-                        gap: 12,
-                        padding: "12px 0",
-                        borderBottom: "1px solid #f0f0f0",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text ellipsis={{ tooltip: developer.developer }} strong>
-                        {developer.developer}
-                      </Text>
-                      <Tag color="blue">总计 {developer.skillCount}</Tag>
-                      <Tag color="gold">可疑 {developer.suspiciousCount}</Tag>
-                      <Tag color="red">恶意 {developer.maliciousCount}</Tag>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <Empty description="暂无开发者数据" />
-              )}
-            </Card>
-          </Col>
-          <Col xs={24} xl={12} style={{ display: "flex" }}>
-            <Card
-              title="处置建议"
-              style={{ width: "100%", height: "100%", borderRadius: 20 }}
-              bodyStyle={{ height: "100%" }}
-            >
-              <div style={{ display: "grid", gap: 14 }}>
-                <div
-                  style={{
-                    padding: 16,
-                    borderRadius: 16,
-                    background: "#fff7e6",
-                  }}
-                >
-                  <Text
-                    strong
-                    style={{
-                      display: "block",
-                      color: "#d46b08",
-                      marginBottom: 6,
-                    }}
-                  >
-                    1. 先处理高危暴露与 RCE
-                  </Text>
-                  <Paragraph style={{ margin: 0, color: "#8c8c8c" }}>
-                    优先修复公网暴露服务中的高危端口与高危/严重漏洞，缩短真实可利用路径。
-                  </Paragraph>
-                </div>
-                <div
-                  style={{
-                    padding: 16,
-                    borderRadius: 16,
-                    background: "#fff1f0",
-                  }}
-                >
-                  <Text
-                    strong
-                    style={{
-                      display: "block",
-                      color: "#cf1322",
-                      marginBottom: 6,
-                    }}
-                  >
-                    2. 冻结恶意与可疑 Skills
-                  </Text>
-                  <Paragraph style={{ margin: 0, color: "#8c8c8c" }}>
-                    对恶意 Skills 立即下线，对可疑 Skills
-                    暂停分发并补充审计，避免继续扩散。
-                  </Paragraph>
-                </div>
-                <div
-                  style={{
-                    padding: 16,
-                    borderRadius: 16,
-                    background: "#f0f5ff",
-                  }}
-                >
-                  <Text
-                    strong
-                    style={{
-                      display: "block",
-                      color: "#1d39c4",
-                      marginBottom: 6,
-                    }}
-                  >
-                    3. 跟踪漏洞阶段分布
-                  </Text>
-                  <Paragraph style={{ margin: 0, color: "#8c8c8c" }}>
-                    当前漏洞主要集中在鉴权、资源访问和执行阶段，修复策略应优先覆盖这些环节。
-                  </Paragraph>
-                </div>
-              </div>
-            </Card>
-          </Col>
-        </Row>
       </Spin>
     </PageContainer>
   );

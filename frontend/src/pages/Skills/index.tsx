@@ -1,4 +1,4 @@
-import { PageContainer, ProList } from '@ant-design/pro-components';
+import { PageContainer, ProList } from "@ant-design/pro-components";
 import {
   Alert,
   Avatar,
@@ -6,51 +6,88 @@ import {
   Card,
   Col,
   Empty,
-  Input,
   Row,
   Select,
   Space,
   Spin,
-  Table,
   Tabs,
   Tag,
   Typography,
-} from 'antd';
+} from "antd";
 import {
   CheckCircleOutlined,
   CodeOutlined,
-  ExclamationCircleOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   StopOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
-import { Column } from '@ant-design/charts';
-import { useEffect, useState } from 'react';
-import { useSkillsData, useSkillsList, type SkillDetail } from '../../services/skillsApi';
+} from "@ant-design/icons";
+import { Column } from "@ant-design/charts";
+import { useEffect, useState } from "react";
+import {
+  useSkillsData,
+  useSkillsList,
+  type SkillDetail,
+} from "../../services/skillsApi";
 
-const { Search } = Input;
 const { Option } = Select;
 const { Paragraph, Text, Link } = Typography;
 
 function formatDate(value?: string) {
   if (!value) {
-    return '-';
+    return "unknown";
   }
   const match = value.match(/\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : value;
+  return match ? match[0] : "unknown";
+}
+
+function sanitizeDescription(description?: string) {
+  if (!description) {
+    return "";
+  }
+  if (
+    description.startsWith("可疑技能：") ||
+    description.startsWith("恶意技能：")
+  ) {
+    return "";
+  }
+  return description;
 }
 
 function getSourceTag(source: string) {
   switch (source) {
-    case 'clawhub':
+    case "clawhub":
       return <Tag color="green">官方</Tag>;
-    case 'skills.rest':
+    case "skills.rest":
       return <Tag color="blue">Skills.rest</Tag>;
-    case 'skillsmp':
+    case "skillsmp":
       return <Tag color="purple">SkillsMP</Tag>;
+    case "skills.sh":
+      return <Tag color="cyan">skills.sh</Tag>;
+    case "gendigital":
+      return <Tag color="geekblue">GenDigital</Tag>;
+    case "koi":
+      return <Tag color="volcano">KOI</Tag>;
     default:
       return <Tag>{source}</Tag>;
+  }
+}
+
+function getSourceLabel(source: string) {
+  switch (source) {
+    case "clawhub":
+      return "ClawHub";
+    case "skills.rest":
+      return "Skills.rest";
+    case "skillsmp":
+      return "SkillsMP";
+    case "skills.sh":
+      return "skills.sh";
+    case "gendigital":
+      return "GenDigital";
+    case "koi":
+      return "KOI";
+    default:
+      return source;
   }
 }
 
@@ -66,14 +103,13 @@ function SkillListSection(props: {
   categories: Array<{ category: string }>;
   onSourceChange: (value?: string) => void;
   onCategoryChange: (value?: string) => void;
-  onSearch: (value: string) => void;
   emptyText: string;
 }) {
   return (
     <Card
       title={props.title}
       extra={
-        <Space>
+        <Space wrap>
           <Select
             placeholder="选择数据源"
             style={{ width: 150 }}
@@ -84,6 +120,9 @@ function SkillListSection(props: {
             <Option value="clawhub">ClawHub官方</Option>
             <Option value="skills.rest">Skills.rest</Option>
             <Option value="skillsmp">SkillsMP</Option>
+            <Option value="skills.sh">skills.sh</Option>
+            <Option value="gendigital">GenDigital</Option>
+            <Option value="koi">KOI</Option>
           </Select>
           <Select
             placeholder="选择分类"
@@ -98,12 +137,6 @@ function SkillListSection(props: {
               </Option>
             ))}
           </Select>
-          <Search
-            placeholder="搜索 Skills"
-            style={{ width: 220 }}
-            onSearch={props.onSearch}
-            enterButton
-          />
         </Space>
       }
       loading={props.loading}
@@ -126,14 +159,30 @@ function SkillListSection(props: {
         metas={{
           title: {
             render: (_, record) => (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <CodeOutlined style={{ color: '#1677ff' }} />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <CodeOutlined style={{ color: "#1677ff" }} />
                 <span style={{ fontWeight: 600 }}>{record.name}</span>
-                <Tag color="blue">{record.version || '-'}</Tag>
+                <Tag color="blue">{record.version || "-"}</Tag>
                 {getSourceTag(record.source)}
-                {record.classification === 'safe' ? <Tag color="green">安全</Tag> : null}
-                {record.classification === 'suspicious' ? <Tag color="orange">可疑</Tag> : null}
-                {record.classification === 'malicious' ? <Tag color="red">恶意</Tag> : null}
+                {record.classification === "safe" ? (
+                  <Tag color="green">安全</Tag>
+                ) : null}
+                {record.classification === "suspicious" ? (
+                  <Tag color="orange">可疑</Tag>
+                ) : null}
+                {record.classification === "malicious" ? (
+                  <Tag color="red">恶意</Tag>
+                ) : null}
+                {record.classification === "unknown" ? (
+                  <Tag color="default">待检测</Tag>
+                ) : null}
               </div>
             ),
           },
@@ -141,12 +190,20 @@ function SkillListSection(props: {
             render: (_, record) => (
               <div>
                 <Paragraph style={{ marginBottom: 8 }}>
-                  {record.description || '暂无公开描述'}
+                  {sanitizeDescription(record.description) || "暂无公开描述"}
                 </Paragraph>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#64748b' }}>
-                  <span>分类：{record.category || '-'}</span>
-                  <span>维护者：{record.maintainer || '-'}</span>
-                  <span>更新时间：{formatDate(record.lastUpdated)}</span>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 16,
+                    flexWrap: "wrap",
+                    fontSize: 12,
+                    color: "#64748b",
+                  }}
+                >
+                  <span>分类：{record.category || "-"}</span>
+                  <span>维护者：{record.maintainer || "-"}</span>
+                  <span>技能更新时间：{formatDate(record.lastUpdated)}</span>
                   {record.repository ? (
                     <Link href={record.repository} target="_blank">
                       仓库链接
@@ -163,35 +220,56 @@ function SkillListSection(props: {
 }
 
 export default function Skills() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSource, setSelectedSource] = useState<string | undefined>(undefined);
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedSource, setSelectedSource] = useState<string | undefined>(
+    undefined,
+  );
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
+    undefined,
+  );
   const [trustedPage, setTrustedPage] = useState(1);
-  const [suspiciousPage, setSuspiciousPage] = useState(1);
+  const [pendingPage, setPendingPage] = useState(1);
   const [maliciousPage, setMaliciousPage] = useState(1);
 
-  const { stats, loading: statsLoading, error: statsError, refetch: refetchStats } = useSkillsData();
-  const trusted = useSkillsList({ classification: 'safe', source: selectedSource, category: selectedCategory, search: searchTerm, page: trustedPage, limit: 20 });
-  const suspicious = useSkillsList({ classification: 'suspicious', source: selectedSource, category: selectedCategory, search: searchTerm, page: suspiciousPage, limit: 20 });
-  const malicious = useSkillsList({ classification: 'malicious', source: selectedSource, category: selectedCategory, search: searchTerm, page: maliciousPage, limit: 20 });
+  const {
+    stats,
+    loading: statsLoading,
+    error: statsError,
+    refetch: refetchStats,
+  } = useSkillsData();
+  const trusted = useSkillsList({
+    classification: "safe",
+    source: selectedSource,
+    category: selectedCategory,
+    page: trustedPage,
+    limit: 20,
+  });
+  const pending = useSkillsList({
+    classification: "unknown",
+    source: selectedSource,
+    category: selectedCategory,
+    page: pendingPage,
+    limit: 20,
+  });
+  const malicious = useSkillsList({
+    classification: "malicious",
+    source: selectedSource,
+    category: selectedCategory,
+    page: maliciousPage,
+    limit: 20,
+  });
 
   useEffect(() => {
-    const errors = [statsError, trusted.error, suspicious.error, malicious.error].filter(Boolean);
+    const errors = [statsError, trusted.error, pending.error, malicious.error].filter(Boolean);
     if (errors.length > 0) {
       // eslint-disable-next-line no-console
       console.error(errors[0]);
     }
-  }, [statsError, trusted.error, suspicious.error, malicious.error]);
+  }, [statsError, trusted.error, pending.error, malicious.error]);
 
   const resetPages = () => {
     setTrustedPage(1);
-    setSuspiciousPage(1);
+    setPendingPage(1);
     setMaliciousPage(1);
-  };
-
-  const handleSearch = (value: string) => {
-    setSearchTerm(value);
-    resetPages();
   };
 
   const handleSourceChange = (value?: string) => {
@@ -205,24 +283,53 @@ export default function Skills() {
   };
 
   const handleRefresh = async () => {
-    await Promise.all([refetchStats(), trusted.refetch(), suspicious.refetch(), malicious.refetch()]);
+    await Promise.all([refetchStats(), trusted.refetch(), pending.refetch(), malicious.refetch()]);
   };
 
   const categoryData = stats?.topCategories || [];
+  const sourceColorMap: Record<string, string> = {
+    clawhub: "#52c41a",
+    "skills.rest": "#1890ff",
+    skillsmp: "#722ed1",
+    "skills.sh": "#13c2c2",
+    gendigital: "#2f54eb",
+    koi: "#fa541c",
+    other: "#8c8c8c",
+  };
   const sourceDistributionData = stats
-    ? [
-        { source: 'ClawHub', count: stats.sourceDistribution.clawhub },
-        { source: 'Skills.rest', count: stats.sourceDistribution.skillsRest },
-        { source: 'SkillsMP', count: stats.sourceDistribution.skillsmp },
-      ].filter((item) => item.count > 0)
+    ? stats.sourceDistribution
+        .map((item) => ({
+          source: getSourceLabel(item.source),
+          count: item.count,
+          color: sourceColorMap[item.source] || "#8c8c8c",
+        }))
+        .filter((item) => item.count > 0)
     : [];
+  const sourceTotal = sourceDistributionData.reduce(
+    (sum, item) => sum + item.count,
+    0,
+  );
+  const sourceChartBackground = sourceDistributionData.length
+    ? `conic-gradient(${sourceDistributionData
+        .map((item, index) => {
+          const start = sourceDistributionData
+            .slice(0, index)
+            .reduce((sum, current) => sum + current.count, 0);
+          const end = start + item.count;
+          const startPercent =
+            sourceTotal > 0 ? (start / sourceTotal) * 100 : 0;
+          const endPercent = sourceTotal > 0 ? (end / sourceTotal) * 100 : 0;
+          return `${item.color} ${startPercent}% ${endPercent}%`;
+        })
+        .join(", ")})`
+    : "#f0f0f0";
 
   const categoryConfig = {
     data: categoryData,
-    xField: 'category',
-    yField: 'count',
+    xField: "category",
+    yField: "count",
     height: 300,
-    color: '#1890ff',
+    color: "#1890ff",
     label: false,
     axis: {
       y: {
@@ -231,49 +338,10 @@ export default function Skills() {
     },
   };
 
-  const developerColumns = [
-    {
-      title: '开发者',
-      dataIndex: 'developer',
-      key: 'developer',
-      width: 240,
-      ellipsis: true,
-      render: (text: string) => (
-        <Space style={{ maxWidth: 220 }}>
-          <Avatar icon={<UserOutlined />} size="small" />
-          <span title={text}>{text}</span>
-        </Space>
-      ),
-    },
-    {
-      title: '总技能数',
-      dataIndex: 'skillCount',
-      key: 'skillCount',
-    },
-    {
-      title: '安全',
-      dataIndex: 'safeCount',
-      key: 'safeCount',
-      render: (count: number) => <Tag color="green">{count}</Tag>,
-    },
-    {
-      title: '可疑',
-      dataIndex: 'suspiciousCount',
-      key: 'suspiciousCount',
-      render: (count: number) => <Tag color={count > 0 ? 'orange' : 'default'}>{count}</Tag>,
-    },
-    {
-      title: '恶意',
-      dataIndex: 'maliciousCount',
-      key: 'maliciousCount',
-      render: (count: number) => <Tag color={count > 0 ? 'red' : 'default'}>{count}</Tag>,
-    },
-  ];
-
   if (statsLoading && !stats) {
     return (
       <PageContainer>
-        <div style={{ textAlign: 'center', padding: '50px 0' }}>
+        <div style={{ textAlign: "center", padding: "50px 0" }}>
           <Spin size="large" />
         </div>
       </PageContainer>
@@ -283,7 +351,12 @@ export default function Skills() {
   if (statsError && !stats) {
     return (
       <PageContainer>
-        <Alert message="数据加载失败" description={statsError} type="error" showIcon />
+        <Alert
+          message="数据加载失败"
+          description={statsError}
+          type="error"
+          showIcon
+        />
       </PageContainer>
     );
   }
@@ -298,62 +371,90 @@ export default function Skills() {
 
   return (
     <PageContainer
-      title="Skill 投毒检测与可信库管理"
-      subTitle="保留原有布局，仅展示当前可确认的数据字段"
+      title="Skill 投毒情报与可信治理"
+      subTitle="收集公开来源的 Skill 投毒情报，并基于自研能力进行持续安全检测"
       extra={[
-        <Button key="sync" icon={<ReloadOutlined />} onClick={handleRefresh} loading={statsLoading}>
+        <Button
+          key="sync"
+          icon={<ReloadOutlined />}
+          onClick={handleRefresh}
+          loading={statsLoading}
+        >
           同步 Skill 库
         </Button>,
       ]}
     >
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message="已移除列表中的 mock 性详情、推断性原因、安全分数和详情跳转入口，仅保留可确认的清单、来源、分类、维护者、仓库与更新时间。"
-      />
-
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar size={48} style={{ backgroundColor: '#1890ff' }} icon={<CodeOutlined />} />
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Avatar
+                size={48}
+                style={{ backgroundColor: "#1890ff" }}
+                icon={<CodeOutlined />}
+              />
               <div style={{ marginLeft: 16 }}>
-                <div style={{ fontSize: 24, fontWeight: 'bold' }}>{stats.totalSkills.toLocaleString()}</div>
-                <div style={{ color: '#999' }}>Skills 总数</div>
+                <div style={{ fontSize: 24, fontWeight: "bold" }}>
+                  {stats.totalSkills.toLocaleString()}
+                </div>
+                <div style={{ color: "#999" }}>Skills 总数</div>
               </div>
             </div>
           </Card>
         </Col>
         <Col span={6}>
           <Card>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar size={48} style={{ backgroundColor: '#52c41a' }} icon={<CheckCircleOutlined />} />
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Avatar
+                size={48}
+                style={{ backgroundColor: "#52c41a" }}
+                icon={<CheckCircleOutlined />}
+              />
               <div style={{ marginLeft: 16 }}>
-                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>{stats.securityDistribution.safe.toLocaleString()}</div>
-                <div style={{ color: '#999' }}>安全 Skills</div>
+                <div
+                  style={{ fontSize: 24, fontWeight: "bold", color: "#52c41a" }}
+                >
+                  {stats.securityDistribution.safe.toLocaleString()}
+                </div>
+                <div style={{ color: "#999" }}>安全 Skills</div>
               </div>
             </div>
           </Card>
         </Col>
         <Col span={6}>
           <Card>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar size={48} style={{ backgroundColor: '#fa8c16' }} icon={<ExclamationCircleOutlined />} />
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Avatar
+                size={48}
+                style={{ backgroundColor: "#faad14" }}
+                icon={<SafetyCertificateOutlined />}
+              />
               <div style={{ marginLeft: 16 }}>
-                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fa8c16' }}>{stats.securityDistribution.suspicious.toLocaleString()}</div>
-                <div style={{ color: '#999' }}>可疑 Skills</div>
+                <div
+                  style={{ fontSize: 24, fontWeight: "bold", color: "#faad14" }}
+                >
+                  {stats.securityDistribution.unknown.toLocaleString()}
+                </div>
+                <div style={{ color: "#999" }}>待检测 Skills</div>
               </div>
             </div>
           </Card>
         </Col>
         <Col span={6}>
           <Card>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar size={48} style={{ backgroundColor: '#722ed1' }} icon={<StopOutlined />} />
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <Avatar
+                size={48}
+                style={{ backgroundColor: "#722ed1" }}
+                icon={<StopOutlined />}
+              />
               <div style={{ marginLeft: 16 }}>
-                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#722ed1' }}>{stats.securityDistribution.malicious.toLocaleString()}</div>
-                <div style={{ color: '#999' }}>恶意 Skills</div>
+                <div
+                  style={{ fontSize: 24, fontWeight: "bold", color: "#722ed1" }}
+                >
+                  {stats.securityDistribution.malicious.toLocaleString()}
+                </div>
+                <div style={{ color: "#999" }}>恶意 Skills</div>
               </div>
             </div>
           </Card>
@@ -361,33 +462,119 @@ export default function Skills() {
       </Row>
 
       <Row gutter={16} style={{ marginBottom: 24 }} align="stretch">
-        <Col span={7} style={{ display: 'flex' }}>
-          <Card title="📊 数据源分布" size="small" style={{ width: '100%', height: '100%' }}>
-            <Space direction="vertical" style={{ width: '100%' }} size={10}>
-              {sourceDistributionData.map((item) => (
-                <div key={item.source} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{item.source}</span>
-                  <strong>{item.count.toLocaleString()}</strong>
+        <Col xs={24} xl={12} style={{ display: "flex" }}>
+          <Card
+            title="📊 数据源分布"
+            size="small"
+            style={{ width: "100%", height: "100%" }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "260px minmax(0, 1fr)",
+                gap: 20,
+                alignItems: "center",
+                height: "100%",
+                minHeight: 320,
+              }}
+            >
+              <div
+                style={{
+                  height: 300,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{
+                    width: 240,
+                    height: 240,
+                    borderRadius: "50%",
+                    background: sourceChartBackground,
+                    position: "relative",
+                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 42,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div
+                      style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}
+                    >
+                      {sourceTotal.toLocaleString()}
+                    </div>
+                    <div
+                      style={{ marginTop: 8, color: "#8c8c8c", fontSize: 12 }}
+                    >
+                      Total Skills
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </Space>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                {sourceDistributionData.map((item) => (
+                  <div
+                    key={item.source}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      padding: "10px 0",
+                      borderBottom: "1px solid #f0f0f0",
+                    }}
+                  >
+                    <Space size={8} style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          display: "inline-block",
+                          backgroundColor: item.color,
+                        }}
+                      />
+                      <span style={{ fontWeight: 500 }}>{item.source}</span>
+                    </Space>
+                    <div
+                      style={{
+                        textAlign: "right",
+                        flexShrink: 0,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      <div style={{ color: "#8c8c8c", fontSize: 12 }}>
+                        {sourceTotal > 0
+                          ? ((item.count / sourceTotal) * 100).toFixed(1)
+                          : "0.0"}
+                        %
+                      </div>
+                      <strong>{item.count.toLocaleString()}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </Card>
         </Col>
-        <Col span={7} style={{ display: 'flex' }}>
-          <Card title="📈 技能分类分布" size="small" style={{ width: '100%', height: '100%' }}>
+        <Col xs={24} xl={12} style={{ display: "flex" }}>
+          <Card
+            title="📈 技能分类分布"
+            size="small"
+            style={{ width: "100%", height: "100%" }}
+          >
             <Column {...categoryConfig} />
-          </Card>
-        </Col>
-        <Col span={10} style={{ display: 'flex' }}>
-          <Card title="👥 Top 10 开发者" size="small" style={{ width: '100%', height: '100%' }}>
-            <Table
-              dataSource={stats.topDevelopers.slice(0, 10)}
-              columns={developerColumns}
-              pagination={false}
-              size="small"
-              rowKey="developer"
-              scroll={{ y: 300 }}
-            />
           </Card>
         </Col>
       </Row>
@@ -396,8 +583,8 @@ export default function Skills() {
         defaultActiveKey="trusted"
         items={[
           {
-            key: 'trusted',
-            label: '✅ 可信 Skills 库',
+            key: "trusted",
+            label: "✅ 可信 Skills 库",
             children: (
               <SkillListSection
                 title="可信 Skills 列表"
@@ -411,35 +598,33 @@ export default function Skills() {
                 categories={stats.topCategories}
                 onSourceChange={handleSourceChange}
                 onCategoryChange={handleCategoryChange}
-                onSearch={handleSearch}
                 emptyText="暂无可信 Skills"
               />
             ),
           },
           {
-            key: 'suspicious',
-            label: '⚠️ 可疑 Skills 检测',
+            key: "pending",
+            label: "🕓 待检测 Skills",
             children: (
               <SkillListSection
-                title="可疑 Skills 列表"
-                loading={suspicious.loading}
-                skills={suspicious.skills}
-                currentPage={suspiciousPage}
-                total={suspicious.pagination.total}
-                onPageChange={setSuspiciousPage}
+                title="待检测 Skills 列表"
+                loading={pending.loading}
+                skills={pending.skills}
+                currentPage={pendingPage}
+                total={pending.pagination.total}
+                onPageChange={setPendingPage}
                 selectedSource={selectedSource}
                 selectedCategory={selectedCategory}
                 categories={stats.topCategories}
                 onSourceChange={handleSourceChange}
                 onCategoryChange={handleCategoryChange}
-                onSearch={handleSearch}
-                emptyText="暂无可疑 Skills"
+                emptyText="暂无待检测 Skills"
               />
             ),
           },
           {
-            key: 'malicious',
-            label: '🚫 恶意 Skills',
+            key: "malicious",
+            label: "🚫 恶意 Skills",
             children: (
               <SkillListSection
                 title="恶意 Skills 列表"
@@ -453,7 +638,6 @@ export default function Skills() {
                 categories={stats.topCategories}
                 onSourceChange={handleSourceChange}
                 onCategoryChange={handleCategoryChange}
-                onSearch={handleSearch}
                 emptyText="暂无恶意 Skills"
               />
             ),

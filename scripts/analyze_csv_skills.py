@@ -104,36 +104,7 @@ def calculate_security_score(classification, skill_name, source):
 
 def generate_threat_description(skill_name, classification):
     """为可疑技能生成威胁描述"""
-    if classification not in {'suspicious', 'malicious'}:
-        return f"来自外部源的{skill_name}技能，分类为{classification}"
-
-    suspicious_patterns = [
-        "检测到可疑的网络通信模式",
-        "发现恶意代码特征",
-        "包含已知漏洞利用代码",
-        "尝试访问敏感系统文件",
-        "异常的权限请求",
-        "混淆的恶意代码",
-        "与已知恶意域名通信",
-        "包含反调试技术",
-        "尝试修改系统注册表",
-        "发现数据外泄行为"
-    ]
-
-    malicious_patterns = [
-        "检测到主动数据窃取行为",
-        "包含持久化后门逻辑",
-        "发现命令执行与远控特征",
-        "存在凭据收集与外传行为",
-        "包含破坏性系统修改能力",
-    ]
-
-    if classification == 'malicious':
-        threat_index = hash(skill_name) % len(malicious_patterns)
-        return f"恶意技能：{malicious_patterns[threat_index]}"
-
-    threat_index = hash(skill_name) % len(suspicious_patterns)
-    return f"可疑技能：{suspicious_patterns[threat_index]}"
+    return ""
 
 def analyze_csv_skills():
     """分析CSV技能数据"""
@@ -217,7 +188,7 @@ def analyze_csv_skills():
                     downloads,
                     rating,
                     False,  # 外部技能未验证
-                    datetime.now(),
+                    "",
                     json.dumps([]),  # 权限信息未知
                     url,
                     json.dumps([]),  # 文件结构未知

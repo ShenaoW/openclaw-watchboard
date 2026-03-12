@@ -30,6 +30,7 @@ export interface ExposureStats {
 export interface ExposedService {
   id: string;
   ip: string;
+  maskedIp?: string;
   hostname: string | null;
   port: number;
   service: string;
