@@ -43,9 +43,13 @@ def parse_datetime(value: str) -> Optional[str]:
 
     for fmt in ("%d/%m/%Y, %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
         try:
-            return datetime.strptime(value, fmt).isoformat()
+            return datetime.strptime(value, fmt).date().isoformat()
         except ValueError:
             continue
+
+    direct_date_match = re.match(r"(\d{4}-\d{2}-\d{2})", value.strip())
+    if direct_date_match:
+        return direct_date_match.group(1)
 
     return value
 
