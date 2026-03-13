@@ -11,6 +11,7 @@ ANNOTATED_CSV_PATH = os.path.abspath(os.path.join(BASE_DIR, "data", "vuls", "ope
 RISKS_DB_PATH = os.path.abspath(os.path.join(BASE_DIR, "data", "risks.db"))
 
 STAGE_NAME_MAP = {
+    "Gateway Authorization & Routing Stage": "网关鉴权与路由",
     "Authentication & Authorization Decision Stage": "网关鉴权与路由",
     "Auth State": "网关鉴权与路由",
     "Resource Access Stage": "工具与技能执行",
@@ -39,6 +40,14 @@ def empty_to_none(value):
       return None
     cleaned = str(value).strip()
     return cleaned or None
+
+
+def pick_severity(row):
+    for key in ("Severity", "Github Severity", "NVD Severity"):
+        value = empty_to_none(row.get(key, ""))
+        if value:
+            return value
+    return ""
 
 
 def normalize_stage(value):
@@ -88,7 +97,7 @@ def main():
                 normalize_stage(row.get("Stage", "")),
                 row.get("Reason", ""),
                 empty_to_none(row.get("Vulnerability ID", "")),
-                row.get("Severity", ""),
+                pick_severity(row),
                 row.get("Affected Versions", ""),
                 row.get("CVE", ""),
                 row.get("CWE", ""),

@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useExposureOverview } from "../../services/exposureApi";
 import { riskAPI, type VulnerabilityItem } from "../../services/riskApi";
 import { useSkillsData } from "../../services/skillsApi";
+import { normalizeRiskStage } from "../../utils/riskStage";
 
 const { Text } = Typography;
 
@@ -27,18 +28,6 @@ const countryNameMap: Record<string, string> = {
   Germany: "德国",
   "Hong Kong": "中国香港",
 };
-
-const vulnerabilityStageNameMap: Record<string, string> = {
-  "Authentication & Authorization Decision Stage": "鉴权与授权决策",
-  "Resource Access Stage": "资源访问",
-  "Execution Stage": "执行阶段",
-  "Persistence & Output Presentation Stage": "持久化与输出呈现",
-  "Input Ingress Stage": "输入入口",
-};
-
-function stageDisplayName(stage: string) {
-  return vulnerabilityStageNameMap[stage] || stage;
-}
 
 function severityColor(level: string) {
   if (level === "Critical") return "#ff4d4f";
@@ -97,7 +86,7 @@ export default function Dashboard() {
   const stageDistribution = useMemo(() => {
     const stageCounter = new Map<string, number>();
     vulnerabilities.forEach((item) => {
-      const key = stageDisplayName(item.stage);
+      const key = normalizeRiskStage(item.stage);
       stageCounter.set(key, (stageCounter.get(key) || 0) + 1);
     });
 

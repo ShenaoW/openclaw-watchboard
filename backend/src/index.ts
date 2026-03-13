@@ -22,6 +22,9 @@ const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL ||
   .map((item) => item.trim())
   .filter(Boolean);
 
+// 站点通过 Nginx 反向代理接入，启用 trust proxy 以便正确识别真实来源 IP。
+app.set('trust proxy', 1);
+
 // 安全中间件
 app.use(helmet());
 app.use(cors({
@@ -47,7 +50,17 @@ app.use(morgan('combined'));
 // 限流
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000 // 限制每个IP每15分钟最多1000个请求
+  max: 1000, // 限制每个IP每15分钟最多1000个请求
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        message: 'Too many requests',
+      },
+    });
+  },
 });
 app.use(limiter);
 

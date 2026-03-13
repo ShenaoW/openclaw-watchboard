@@ -3,6 +3,16 @@ import sqlite3 from 'sqlite3';
 
 type QueryValue = string | number | null;
 
+const STAGE_NAME_MAP: Record<string, string> = {
+  'Gateway Authorization & Routing Stage': '网关鉴权与路由',
+  'Authentication & Authorization Decision Stage': '网关鉴权与路由',
+  'Auth State': '网关鉴权与路由',
+  'Resource Access Stage': '工具与技能执行',
+  'Execution Stage': '工具与技能执行',
+  'Persistence & Output Presentation Stage': '消息回传与持久化',
+  'Input Ingress Stage': '消息输入与通道适配',
+};
+
 class RiskDatabaseService {
   private dbPath = path.join(__dirname, '../../../data/risks.db');
 
@@ -28,6 +38,11 @@ class RiskDatabaseService {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  private normalizeStage(value?: string | null) {
+    const cleaned = value?.trim() || '';
+    return STAGE_NAME_MAP[cleaned] || cleaned;
   }
 
   async getVulnerabilities() {
@@ -71,7 +86,7 @@ class RiskDatabaseService {
       vulnerabilities: rows.map((row) => ({
         index: Number(row.source_index || 0),
         title: row.vulnerability_title || '',
-        stage: row.stage || '',
+        stage: this.normalizeStage(row.stage),
         reason: row.reason || '',
         vulnerabilityId: row.vulnerability_id || '',
         severity: row.severity || '',

@@ -7,6 +7,7 @@ import { history, useLocation } from "@umijs/max";
 import { Alert, Card, Space, Tag, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { riskAPI, type VulnerabilityItem } from "../../services/riskApi";
+import { normalizeRiskStage } from "../../utils/riskStage";
 
 const { Paragraph, Text, Link } = Typography;
 
@@ -88,7 +89,7 @@ export default function VulnerabilitiesPage() {
   const stageOptions = useMemo(() => {
     const counter = new Map<string, number>();
     rows.forEach((item) => {
-      const key = item.stage?.trim() || "未标注阶段";
+      const key = normalizeRiskStage(item.stage) || "未标注阶段";
       counter.set(key, (counter.get(key) || 0) + 1);
     });
 
@@ -117,7 +118,7 @@ export default function VulnerabilitiesPage() {
 
     if (stageFilter !== "all") {
       nextRows = nextRows.filter(
-        (item) => (item.stage?.trim() || "未标注阶段") === stageFilter,
+        (item) => (normalizeRiskStage(item.stage) || "未标注阶段") === stageFilter,
       );
     }
 
@@ -144,7 +145,9 @@ export default function VulnerabilitiesPage() {
       title: "OpenClaw 生命周期阶段",
       dataIndex: "stage",
       width: 240,
-      render: (_, record) => <Tag color="blue">{record.stage || "未标注阶段"}</Tag>,
+      render: (_, record) => (
+        <Tag color="blue">{normalizeRiskStage(record.stage) || "未标注阶段"}</Tag>
+      ),
     },
     {
       title: "漏洞编号",
@@ -291,7 +294,7 @@ export default function VulnerabilitiesPage() {
               </Paragraph>
               <Paragraph style={{ marginBottom: 8 }}>
                 <Text strong>生命周期阶段：</Text>
-                {record.stage || "未标注阶段"}
+                {normalizeRiskStage(record.stage) || "未标注阶段"}
               </Paragraph>
               <Paragraph style={{ marginBottom: 0 }}>
                 <Text strong>CVE：</Text>

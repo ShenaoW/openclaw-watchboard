@@ -552,15 +552,18 @@ export default function Skills() {
                         textAlign: "right",
                         flexShrink: 0,
                         lineHeight: 1.35,
+                        whiteSpace: "nowrap",
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
-                      <div style={{ color: "#8c8c8c", fontSize: 12 }}>
+                      <strong>{item.count.toLocaleString()}</strong>
+                      <span style={{ color: "#8c8c8c", fontSize: 12 }}>
+                        {" / "}
                         {sourceTotal > 0
                           ? ((item.count / sourceTotal) * 100).toFixed(1)
                           : "0.0"}
                         %
-                      </div>
-                      <strong>{item.count.toLocaleString()}</strong>
+                      </span>
                     </div>
                   </div>
                 ))}

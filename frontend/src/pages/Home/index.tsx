@@ -124,11 +124,11 @@ export default function HomePage() {
               lineHeight: "24px",
             }}
           >
-            SecurityPRIDE 研究团队
+            Security PRIDE 研究团队
           </Tag>
         </div>
         <Title level={1} style={{ color: "#ffffff", margin: 0, maxWidth: 920 }}>
-          面向 OpenClaw 生态安全治理的监测与分析平台
+          OpenClaw 生态安全监测与分析平台
         </Title>
         <Paragraph
           style={{

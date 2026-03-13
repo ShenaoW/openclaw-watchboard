@@ -7,7 +7,7 @@ from collections import Counter
 
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
-SOURCE_CSV_PATH = os.path.join(BASE_DIR, "data", "vuls", "openclaw_vuls.csv")
+RAW_CSV_PATH = os.path.join(BASE_DIR, "data", "vuls", "openclaw_vuls.csv")
 ANNOTATED_CSV_PATH = os.path.join(BASE_DIR, "data", "vuls", "openclaw_vuls_annotated.csv")
 
 TOP10_META = {
@@ -111,7 +111,9 @@ def classify_vulnerability(row):
 
 
 def main():
-    with open(SOURCE_CSV_PATH, "r", encoding="utf-8-sig", newline="") as source_file:
+    source_csv_path = ANNOTATED_CSV_PATH if os.path.exists(ANNOTATED_CSV_PATH) else RAW_CSV_PATH
+
+    with open(source_csv_path, "r", encoding="utf-8-sig", newline="") as source_file:
         rows = list(csv.DictReader(source_file))
 
     annotated_rows = []
@@ -135,6 +137,7 @@ def main():
         writer.writerows(annotated_rows)
 
     print(f"✅ 已生成漏洞标注 CSV: {ANNOTATED_CSV_PATH}")
+    print(f"📄 标注源文件: {source_csv_path}")
     print("📊 漏洞性质分布:")
     for label, count in nature_counter.most_common():
         print(f"  - {label}: {count}")

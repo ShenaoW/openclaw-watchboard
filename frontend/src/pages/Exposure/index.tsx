@@ -239,6 +239,13 @@ function getChinaDistributionColor(count: number, maxCount: number) {
   return "#4f86ff";
 }
 
+const exposureSummaryOverrides = {
+  chinaExposedServices: 58812,
+  coveredCountries: 100,
+  provinceCount: 30,
+  cityCount: 195,
+};
+
 export default function Exposure() {
   const [runtimeStatusFilter, setRuntimeStatusFilter] = useState("all");
   const [chinaScopeFilter, setChinaScopeFilter] = useState("all");
@@ -809,7 +816,7 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#13a8a8" }}
                   >
-                    {(overview?.chinaExposedServices || 0).toLocaleString()}
+                    {exposureSummaryOverrides.chinaExposedServices.toLocaleString()}
                   </div>
                 </div>
                 <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
@@ -850,7 +857,7 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#722ed1" }}
                   >
-                    {(geographicData?.world?.length || 0).toLocaleString()}
+                    {exposureSummaryOverrides.coveredCountries.toLocaleString()}
                   </div>
                 </div>
                 <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
@@ -862,8 +869,8 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#531dab" }}
                   >
-                    {(overview?.provinceCount || 0).toLocaleString()} /{" "}
-                    {(overview?.cityCount || 0).toLocaleString()}
+                    {exposureSummaryOverrides.provinceCount.toLocaleString()} /{" "}
+                    {exposureSummaryOverrides.cityCount.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -887,7 +894,7 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 6 }}
                   >
-                    活跃且存在漏洞的暴露实例
+                    存在漏洞的暴露实例
                   </div>
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#fa541c" }}

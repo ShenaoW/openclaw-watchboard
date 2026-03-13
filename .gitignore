@@ -145,3 +145,5 @@ config/local.json
 # pychache
 __pycache__/
 *.pyc
+
+/exports/

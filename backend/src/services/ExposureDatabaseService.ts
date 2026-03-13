@@ -250,7 +250,7 @@ class ExposureDatabaseService {
 
     return {
       services: rows.map((row, index) => ({
-        id: `${row.ip_port}-${offset + index}`,
+        id: `exposure-${row.id ?? offset + index + 1}`,
         ip: row.masked_ip || row.ip,
         maskedIp: row.masked_ip || row.ip,
         hostname: row.assistant_name || null,
