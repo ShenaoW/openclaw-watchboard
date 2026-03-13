@@ -102,16 +102,6 @@ logs
 *.db
 *.sqlite
 data/*
-!data/explosure/
-!data/skills/
-!data/vuls/
-data/explosure/*
-!data/explosure/.gitkeep
-data/skills/*
-!data/skills/skills_dataset.csv
-data/vuls/*
-!data/vuls/openclaw_vuls.csv
-!data/vuls/openclaw_vuls_annotated.csv
 
 # Build outputs
 /backend/dist/
