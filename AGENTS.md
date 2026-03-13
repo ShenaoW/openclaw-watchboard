@@ -6,7 +6,7 @@ The goal is not generic repo onboarding. The goal is to preserve the current pro
 
 ## What This Project Is
 
-OpenClaw Watchboard is a monorepo security dashboard for four current sections:
+OpenClaw Watchboard is a monorepo security dashboard for five current sections:
 
 1. `OpenClaw安全治理总览`
 2. `OpenClaw风险漏洞追踪`
@@ -37,7 +37,7 @@ Current project reality:
 
 - SQLite files under `data/` are the actual production data source.
 - The repo intentionally does **not** commit the `.db` files.
-- The system is deployed to a Tencent Cloud Ubuntu host and served via Nginx + PM2.
+- The system is currently deployed to Tencent Cloud and Aliyun Ubuntu hosts and served via Nginx + PM2.
 - The user wants practical data refresh + sync workflows, not abstract deployment docs.
 - The frontend menu labels and page wording have been customized to Chinese stakeholder-facing names.
 
@@ -81,7 +81,7 @@ Meaning:
 npm run sync:databases
 ```
 
-This syncs all `.db` files under `data/` to the Tencent Cloud server and restarts the backend.
+This syncs all `.db` files under `data/` to the remote server and restarts the backend.
 
 The sync script is:
 
@@ -92,6 +92,12 @@ It is expected to:
 - upload all local `data/*.db`
 - backup previous remote DBs
 - restart `pm2` app `openclaw-backend`
+
+Important current usage:
+
+- default target is Tencent because `REMOTE_HOST` defaults to `tencent`
+- the same script can be reused for Aliyun by overriding `REMOTE_HOST=aliyun`
+- when only database contents changed, prefer DB sync only and do not redeploy code or reinstall dependencies
 
 ### Deployment Security Tool
 
@@ -249,6 +255,7 @@ Current expectations:
 The current production-like deployment pattern is:
 
 - Tencent Cloud Ubuntu host
+- Aliyun Ubuntu host
 - Node + PM2 for backend
 - Nginx serving frontend static files
 - `/api` proxied to backend
@@ -257,7 +264,7 @@ The PM2 app name is:
 
 - `openclaw-backend`
 
-The application has been deployed under:
+The application has been both deployed on Tencent and Aliyun under:
 
 - `/var/www/openclaw-watchboard`
 
@@ -280,11 +287,46 @@ If `/tools` or the download file seem missing but build succeeded, verify the re
 The current working deployment approach used in this repo:
 
 1. create a tarball locally
-2. upload it to the Tencent server
+2. upload it to the target server
 3. extract into `/var/www/openclaw-watchboard`
-4. run `npm run build`
-5. restart `pm2 restart openclaw-backend`
-6. verify health and key routes
+4. only if dependencies changed or the target host is not already in a good state, run `npm install`
+5. build what is actually needed
+6. restart `pm2 restart openclaw-backend`
+7. verify health and key routes
+
+Practical deployment rules learned from recent remote pushes:
+
+- do not assume every code push needs a full remote `npm install`
+- if only application code changed and remote `node_modules` is already healthy, prefer just syncing code, rebuilding, and restarting pm2
+- if only `data/*.db` changed, prefer `npm run sync:databases` and do not redeploy code
+- avoid packaging or copying any local `node_modules` to Linux servers
+- for cross-platform safety, deployment archives should exclude all `node_modules` and all build outputs
+- if remote dependencies are already valid, reinstalling them is unnecessary risk and slows deployment
+- reinstall dependencies only when one of these is true:
+  - `package.json` or lockfile changed
+  - native module bindings are broken
+  - the remote `node_modules` tree is missing/corrupted
+  - the target host is being initialized or normalized
+
+Important Tencent-specific lesson:
+
+- building the frontend directly on Tencent may fail with `mako` / Rust bundler runtime issues such as `Bus error (core dumped)`
+- if backend build is fine but Tencent frontend build fails at `max build`, build `frontend/dist` locally and upload that static output instead of repeatedly forcing remote frontend builds
+
+Important native dependency lesson:
+
+- backend depends on `sqlite3`
+- if Tencent backend starts failing with `Could not locate the bindings file`, the issue is usually `sqlite3` native bindings, not the application code
+- Tencent needed `build-essential` installed before `npm rebuild sqlite3 --build-from-source` could succeed
+- after rebuilding `sqlite3`, restart pm2 and recheck `/health`
+
+Safe default deployment order:
+
+1. Decide whether this is a DB-only change, code-only change, or dependency-changing release.
+2. For DB-only change: sync only `data/*.db`.
+3. For code-only change with healthy remote deps: upload code, rebuild required targets, restart pm2.
+4. For dependency-changing release: upload code, run remote `npm install`, rebuild, restart pm2.
+5. Verify backend health first, then Nginx routes with the correct `Host` header.
 
 The backend health check:
 
@@ -332,6 +374,12 @@ For code changes, rebuild and deploy the repo contents to the Tencent host, then
 - `/tools`
 - `/downloads/openclaw-scan.zip`
 - key API routes used by Dashboard / Exposure / Risks
+
+If both Tencent and Aliyun need the same release:
+
+- keep both servers on `/var/www/openclaw-watchboard`
+- prefer the same archive layout and pm2 app name on both servers
+- validate each host independently; do not assume one host's successful build proves the other host is healthy
 
 ## In Short
 
