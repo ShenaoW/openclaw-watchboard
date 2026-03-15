@@ -141,6 +141,54 @@ Important current behavior:
 - domestic vs overseas is shown in the frontend
 - China province/city summaries are exposed by the backend for charts
 
+### Exposure Daily Update Workflow
+
+The current daily exposure refresh path is driven by:
+
+- [`scripts/run_openclaw_probe_pipeline.sh`](/Users/shawn/Desktop/openclaw-watchboard/scripts/run_openclaw_probe_pipeline.sh)
+
+Important current behavior:
+
+- FOFA fetch now uses `search/all?page=` only, not `search/next`
+- fresh FOFA raw data is cached at:
+  - [`data/explosure/fofa_cache/openclaw_latest.csv`](/Users/shawn/Desktop/openclaw-watchboard/data/explosure/fofa_cache/openclaw_latest.csv)
+- per-run status is written to:
+  - [`data/explosure/runs/latest_status.json`](/Users/shawn/Desktop/openclaw-watchboard/data/explosure/runs/latest_status.json)
+- default script behavior is now the full daily pipeline:
+  - fetch FOFA
+  - probe incremental candidates
+  - write compatibility exposure CSV/JSON files
+  - refresh `data/exposure.db`
+
+Recommended daily commands:
+
+```bash
+# Full daily update
+FOFA_KEY='your-key' /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# Fetch FOFA only and refresh local cache
+FOFA_KEY='your-key' OPENCLAW_PROBE_FETCH_ONLY=1 OPENCLAW_PROBE_WRITE_LIVE=0 OPENCLAW_PROBE_REFRESH_DB=0 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# Rebuild exposure inputs and exposure.db from local FOFA cache only
+OPENCLAW_PROBE_CACHE_ONLY=1 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# Prefer local cache first, fetch remotely only if cache is missing
+FOFA_KEY='your-key' OPENCLAW_PROBE_CACHE_FIRST=1 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+```
+
+Useful performance override for large refreshes:
+
+```bash
+FOFA_KEY='your-key' OPENCLAW_PROBE_CONCURRENCY=256 OPENCLAW_PROBE_TIMEOUT=3 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+```
+
+If a full runtime refresh is too slow, a practical fallback is:
+
+1. export the current `probe_instances` state back into the compatibility CSV/JSON inputs
+2. run `npm run refresh:exposure-db`
+
+This is acceptable when the user primarily wants the latest cached FOFA/probe state reflected in the frontend DB without waiting for another very large full active-state re-probe.
+
 ### Risk / Vulnerability Data
 
 The risks DB is built from the vulnerability CSV workflow.

@@ -5,6 +5,7 @@ import { history } from '@umijs/max';
 import { message, notification } from 'antd';
 import React from 'react';
 import { SelectLang } from '@/components';
+import { GlobalAnalyticsTracker } from '@/components/GlobalAnalyticsTracker';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import '@ant-design/v5-patch-for-react-19';
@@ -68,6 +69,7 @@ export const layout: RunTimeLayoutConfig = ({
     childrenRender: (children) => {
       return (
         <>
+          <GlobalAnalyticsTracker />
           <div key={history.location.pathname}>{children}</div>
           {isDev && (
             <SettingDrawer

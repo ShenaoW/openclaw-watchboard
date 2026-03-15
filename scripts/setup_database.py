@@ -165,6 +165,10 @@ def setup_exposure_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             total_instances INTEGER,
             active_instances INTEGER,
+            china_exposed_services INTEGER DEFAULT 0,
+            china_active_instances INTEGER DEFAULT 0,
+            province_count INTEGER DEFAULT 0,
+            city_count INTEGER DEFAULT 0,
             clean_count INTEGER,
             leaked_count INTEGER,
             credentials_yes INTEGER,
@@ -265,6 +269,14 @@ def setup_exposure_database():
     }
     if "active_instances" not in existing_exposure_summary:
         cursor.execute("ALTER TABLE exposure_summary ADD COLUMN active_instances INTEGER")
+    if "china_exposed_services" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN china_exposed_services INTEGER DEFAULT 0")
+    if "china_active_instances" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN china_active_instances INTEGER DEFAULT 0")
+    if "province_count" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN province_count INTEGER DEFAULT 0")
+    if "city_count" not in existing_exposure_summary:
+        cursor.execute("ALTER TABLE exposure_summary ADD COLUMN city_count INTEGER DEFAULT 0")
     if "historical_vulnerable_instances" not in existing_exposure_summary:
         cursor.execute("ALTER TABLE exposure_summary ADD COLUMN historical_vulnerable_instances INTEGER DEFAULT 0")
     if "historical_vulnerable_active_instances" not in existing_exposure_summary:
@@ -278,6 +290,43 @@ def setup_exposure_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_port ON exposure_instances(port)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_last_seen ON exposure_instances(last_seen)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exposure_historical_vuln_count ON exposure_instances(historical_vuln_count)")
+
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS probe_instances (
+            ip_port TEXT PRIMARY KEY,
+            ip TEXT NOT NULL,
+            port INTEGER NOT NULL,
+            first_seen_at TEXT NOT NULL,
+            last_active_at TEXT,
+            is_active INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL,
+            country_name TEXT,
+            region TEXT,
+            city TEXT,
+            asn TEXT,
+            org TEXT,
+            server_version TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        '''
+    )
+
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS probe_daily_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_date TEXT NOT NULL,
+            ip_port TEXT NOT NULL,
+            is_active INTEGER NOT NULL,
+            server_version TEXT,
+            UNIQUE(snapshot_date, ip_port)
+        )
+        '''
+    )
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_instances_active ON probe_instances(is_active)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_snapshots_date ON probe_daily_snapshots(snapshot_date)")
 
     conn.commit()
     conn.close()

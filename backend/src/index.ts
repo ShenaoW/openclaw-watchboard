@@ -8,6 +8,8 @@ import dotenv from 'dotenv';
 
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
+import { publicApiGuard } from './middleware/publicApiGuard';
+import analyticsRoutes from './routes/analytics';
 import riskRoutes from './routes/risks';
 import exposureRoutes from './routes/exposure';
 import skillRoutes from './routes/skills';
@@ -50,7 +52,7 @@ app.use(morgan('combined'));
 // 限流
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 限制每个IP每15分钟最多1000个请求
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => {
@@ -64,6 +66,21 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+const heavyReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 80,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        message: 'Too many data requests',
+      },
+    });
+  },
+});
+
 // 解析请求体
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -75,9 +92,11 @@ app.use((req, res, next) => {
 });
 
 // API 路由
-app.use('/api/risks', riskRoutes);
-app.use('/api/exposure', exposureRoutes);
-app.use('/api/skills', skillRoutes);
+app.use('/api', publicApiGuard);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/risks', heavyReadLimiter, riskRoutes);
+app.use('/api/exposure', heavyReadLimiter, exposureRoutes);
+app.use('/api/skills', heavyReadLimiter, skillRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {

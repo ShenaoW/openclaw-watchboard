@@ -5,6 +5,7 @@ export interface ExposureStats {
   activeInstances: number;
   chinaExposedServices: number;
   chinaActiveInstances: number;
+  countryCount: number;
   provinceCount: number;
   cityCount: number;
   criticalExposures: number;
@@ -14,6 +15,17 @@ export interface ExposureStats {
   historicalVulnerableInstances: number;
   historicalVulnerableActiveInstances: number;
   historicalMatchedVulnerabilityCount: number;
+  deltas: {
+    totalExposedServices: number;
+    activeInstances: number;
+    chinaExposedServices: number;
+    chinaActiveInstances: number;
+    countryCount: number;
+    provinceCount: number;
+    cityCount: number;
+    historicalVulnerableInstances: number;
+    historicalMatchedVulnerabilityCount: number;
+  };
   lastScanTime: string;
   topCountries: Array<{
     country: string;
@@ -129,10 +141,16 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
+const API_HEADERS = {
+  'X-Watchboard-Client': 'web',
+};
+
 export const exposureAPI = {
   // 获取暴露统计概览
   async getOverview(): Promise<ExposureStats> {
-    const response = await fetch(`${API_BASE}/exposure/overview`);
+    const response = await fetch(`${API_BASE}/exposure/overview`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!response.ok || !data.success) {
       throw new Error(data.error?.message || 'Failed to fetch exposure overview');
@@ -173,7 +191,9 @@ export const exposureAPI = {
       });
     }
 
-    const response = await fetch(`${API_BASE}/exposure/services?${params}`);
+    const response = await fetch(`${API_BASE}/exposure/services?${params}`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to fetch exposed services');
@@ -187,7 +207,9 @@ export const exposureAPI = {
 
   // 获取地理分布数据
   async getGeographicDistribution(): Promise<GeographicData> {
-    const response = await fetch(`${API_BASE}/exposure/geography`);
+    const response = await fetch(`${API_BASE}/exposure/geography`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!response.ok || !data.success) {
       throw new Error(data.error?.message || 'Failed to fetch geographic distribution');
@@ -197,7 +219,9 @@ export const exposureAPI = {
 
   // 获取端口分布数据
   async getPortDistribution(): Promise<PortDistribution> {
-    const response = await fetch(`${API_BASE}/exposure/ports`);
+    const response = await fetch(`${API_BASE}/exposure/ports`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to fetch port distribution');
@@ -221,7 +245,9 @@ export const exposureAPI = {
       };
     };
   }> {
-    const response = await fetch(`${API_BASE}/exposure/risk-levels`);
+    const response = await fetch(`${API_BASE}/exposure/risk-levels`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to fetch risk level distribution');
@@ -233,7 +259,9 @@ export const exposureAPI = {
     timeRange: string;
     data: ExposureTrendPoint[];
   }> {
-    const response = await fetch(`${API_BASE}/exposure/trends?timeRange=${encodeURIComponent(timeRange)}`);
+    const response = await fetch(`${API_BASE}/exposure/trends?timeRange=${encodeURIComponent(timeRange)}`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to fetch exposure trends');
@@ -247,7 +275,9 @@ export const exposureAPI = {
     found: boolean;
     services: ExposedService[];
   }> {
-    const response = await fetch(`${API_BASE}/exposure/search/${encodeURIComponent(target)}`);
+    const response = await fetch(`${API_BASE}/exposure/search/${encodeURIComponent(target)}`, {
+      headers: API_HEADERS,
+    });
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to search target');
@@ -269,6 +299,7 @@ export const exposureAPI = {
     const response = await fetch(`${API_BASE}/exposure/scan`, {
       method: 'POST',
       headers: {
+        ...API_HEADERS,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(scanData),

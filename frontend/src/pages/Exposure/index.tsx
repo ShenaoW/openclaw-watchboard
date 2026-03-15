@@ -18,9 +18,8 @@ import {
   MinusOutlined,
   PlusOutlined,
   ReloadOutlined,
-  ScanOutlined,
 } from "@ant-design/icons";
-import { Column, Line } from "@ant-design/charts";
+import { Column } from "@ant-design/charts";
 import { useEffect, useRef, useState } from "react";
 import {
   ComposableMap,
@@ -35,7 +34,6 @@ import {
   useExposureOverview,
   useGeographicData,
   usePortDistribution,
-  useExposureTrends,
 } from "../../services/exposureApi";
 
 const { Option } = Select;
@@ -239,13 +237,6 @@ function getChinaDistributionColor(count: number, maxCount: number) {
   return "#4f86ff";
 }
 
-const exposureSummaryOverrides = {
-  chinaExposedServices: 58812,
-  coveredCountries: 100,
-  provinceCount: 30,
-  cityCount: 195,
-};
-
 export default function Exposure() {
   const [runtimeStatusFilter, setRuntimeStatusFilter] = useState("all");
   const [chinaScopeFilter, setChinaScopeFilter] = useState("all");
@@ -291,12 +282,6 @@ export default function Exposure() {
     error: portError,
   } = usePortDistribution();
   const {
-    trendData,
-    loading: trendLoading,
-    error: trendError,
-  } = useExposureTrends("30d");
-
-  const {
     services: exposedServices,
     pagination,
     loading: servicesLoading,
@@ -322,13 +307,12 @@ export default function Exposure() {
       overviewError,
       geoError,
       portError,
-      trendError,
       servicesError,
     ].filter(Boolean);
     if (errors.length > 0) {
       message.error(String(errors[0]));
     }
-  }, [overviewError, geoError, portError, trendError, servicesError]);
+  }, [overviewError, geoError, portError, servicesError]);
 
   const worldMaxCount = Math.max(
     ...(geographicData?.world || []).map((item) => item.count),
@@ -528,64 +512,6 @@ export default function Exposure() {
     },
   };
 
-  const evolutionChartData = trendData.flatMap((item) => [
-    { date: item.date, type: "首次发现", value: item.firstSeen },
-    { date: item.date, type: "最后发现", value: item.lastSeen },
-    { date: item.date, type: "活跃实例", value: item.active },
-  ]);
-
-  const evolutionLineConfig = {
-    data: evolutionChartData,
-    xField: "date",
-    yField: "value",
-    seriesField: "type",
-    height: 320,
-    colorField: "type",
-    color: ({ type }: { type: string }) => {
-      if (type === "首次发现") return "#1677ff";
-      if (type === "最后发现") return "#ff7a45";
-      return "#52c41a";
-    },
-    smooth: true,
-    point: {
-      size: 3,
-      shape: "circle",
-      style: {
-        lineWidth: 1.5,
-        fill: "#fff",
-      },
-    },
-    axis: {
-      x: {
-        title: true,
-        titleText: "日期",
-        labelAutoRotate: true,
-        labelFill: "#1677ff",
-      },
-      y: {
-        title: true,
-        titleText: "实例数量",
-        labelFormatter: (value: string) => Number(value).toLocaleString(),
-        labelFill: "#1677ff",
-      },
-    },
-    legend: {
-      color: {
-        title: false,
-        position: "top",
-      },
-      position: "top",
-    },
-    tooltip: {
-      items: ["type", "value"],
-      customItems: (items: any[]) =>
-        items.map((item) => ({
-          ...item,
-          value: Number(item.value).toLocaleString(),
-        })),
-    },
-  };
-
   const columns = [
     {
       title: "IP地址",
@@ -744,12 +670,10 @@ export default function Exposure() {
     <PageContainer
       title="公网暴露情况分析"
       subTitle="OpenClaw 服务暴露监控与地理分布"
-      extra={[
-        <Button key="scan" type="primary" icon={<ScanOutlined />}>
-          触发扫描
-        </Button>,
-      ]}
     >
+      <div style={{ marginBottom: 12, fontSize: 12, color: "#8c8c8c" }}>
+        最近更新时间：{overview?.lastScanTime || "-"}
+      </div>
       <Spin spinning={overviewLoading}>
         <Row gutter={16} style={{ marginBottom: 24 }} align="stretch">
           <Col span={6} style={{ display: "flex" }}>
@@ -816,7 +740,7 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#13a8a8" }}
                   >
-                    {exposureSummaryOverrides.chinaExposedServices.toLocaleString()}
+                    {(overview?.chinaExposedServices || 0).toLocaleString()}
                   </div>
                 </div>
                 <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
@@ -857,7 +781,7 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#722ed1" }}
                   >
-                    {exposureSummaryOverrides.coveredCountries.toLocaleString()}
+                    {(overview?.countryCount || 0).toLocaleString()}
                   </div>
                 </div>
                 <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 10 }}>
@@ -869,8 +793,8 @@ export default function Exposure() {
                   <div
                     style={{ fontSize: 26, fontWeight: 600, color: "#531dab" }}
                   >
-                    {exposureSummaryOverrides.provinceCount.toLocaleString()} /{" "}
-                    {exposureSummaryOverrides.cityCount.toLocaleString()}
+                    {(overview?.provinceCount || 0).toLocaleString()} /{" "}
+                    {(overview?.cityCount || 0).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -923,12 +847,6 @@ export default function Exposure() {
           </Col>
         </Row>
       </Spin>
-
-      <Card title="📈 暴露实例演化趋势" style={{ marginBottom: 16 }}>
-        <Spin spinning={trendLoading}>
-          <Line {...evolutionLineConfig} />
-        </Spin>
-      </Card>
 
       <Card title="🌍 全球暴露实例分布图" style={{ marginBottom: 16 }}>
         <div

@@ -111,7 +111,7 @@ def classify_vulnerability(row):
 
 
 def main():
-    source_csv_path = ANNOTATED_CSV_PATH if os.path.exists(ANNOTATED_CSV_PATH) else RAW_CSV_PATH
+    source_csv_path = RAW_CSV_PATH if os.path.exists(RAW_CSV_PATH) else ANNOTATED_CSV_PATH
 
     with open(source_csv_path, "r", encoding="utf-8-sig", newline="") as source_file:
         rows = list(csv.DictReader(source_file))

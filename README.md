@@ -115,6 +115,48 @@ npm run refresh:risks-db
 - `serverVersion`
 - 境内实例、省份、城市信息
 
+## OpenClaw Probe 日常更新
+
+公网暴露数据的日常更新入口是：
+
+- `scripts/run_openclaw_probe_pipeline.sh`
+
+默认推荐直接跑完整流程：
+
+```bash
+FOFA_KEY='你的key' /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+```
+
+这会自动完成：
+
+- 从 FOFA `search/all` 抓取数据
+- 更新本地 FOFA 缓存
+- 探测新增实例
+- 回写暴露数据输入文件
+- 刷新 `data/exposure.db`
+
+常用模式：
+
+```bash
+# 只抓 FOFA 缓存
+FOFA_KEY='你的key' OPENCLAW_PROBE_FETCH_ONLY=1 OPENCLAW_PROBE_WRITE_LIVE=0 OPENCLAW_PROBE_REFRESH_DB=0 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# 只用本地缓存更新 exposure 数据库
+OPENCLAW_PROBE_CACHE_ONLY=1 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# 优先读本地缓存，没有缓存时再抓 FOFA
+FOFA_KEY='你的key' OPENCLAW_PROBE_CACHE_FIRST=1 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# 大批量探测时提高并发
+FOFA_KEY='你的key' OPENCLAW_PROBE_CONCURRENCY=256 OPENCLAW_PROBE_TIMEOUT=3 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+```
+
+运行状态查看：
+
+- 最新任务状态：`data/explosure/runs/latest_status.json`
+- 每次运行目录：`data/explosure/runs/`
+- 最新 FOFA 缓存：`data/explosure/fofa_cache/openclaw_latest.csv`
+
 ## 同步到远程服务器
 
 ### 同步数据库

@@ -18,6 +18,18 @@ interface HistoricalVulnerabilityMatch {
   cve: string;
 }
 
+interface OverviewDelta {
+  totalExposedServices: number;
+  activeInstances: number;
+  chinaExposedServices: number;
+  chinaActiveInstances: number;
+  countryCount: number;
+  provinceCount: number;
+  cityCount: number;
+  historicalVulnerableInstances: number;
+  historicalMatchedVulnerabilityCount: number;
+}
+
 class ExposureDatabaseService {
   private dbPath = path.join(__dirname, '../../../data/exposure.db');
 
@@ -62,14 +74,17 @@ class ExposureDatabaseService {
   }
 
   async getOverview() {
-    const [summary] = await this.query<any>(
+    const summaries = await this.query<any>(
       `
       SELECT *
       FROM exposure_summary
       ORDER BY generated_at DESC, id DESC
-      LIMIT 1
+      LIMIT 2
       `,
     );
+
+    const summary = summaries[0];
+    const previousSummary = summaries[1];
 
     if (!summary) {
       throw new Error('No exposure summary found in database');
@@ -93,25 +108,37 @@ class ExposureDatabaseService {
       `,
     );
 
-    const [chinaStats] = await this.query<any>(
-      `
-      SELECT
-        COUNT(*) as total_china_instances,
-        SUM(CASE WHEN runtime_status = 'Active' THEN 1 ELSE 0 END) as active_china_instances,
-        COUNT(DISTINCT CASE WHEN province IS NOT NULL AND trim(province) != '' THEN province END) as province_count,
-        COUNT(DISTINCT CASE WHEN cn_city IS NOT NULL AND trim(cn_city) != '' THEN cn_city END) as city_count
-      FROM exposure_instances
-      WHERE is_china_instance = 'Yes'
-      `,
-    );
+    const currentChinaExposedServices = Number(summary.china_exposed_services || 0);
+    const currentChinaActiveInstances = Number(summary.china_active_instances || 0);
+    const currentProvinceCount = Number(summary.province_count || 0);
+    const currentCityCount = Number(summary.city_count || 0);
+
+    const deltas: OverviewDelta = {
+      totalExposedServices: Number(summary.total_instances || 0) - Number(previousSummary?.total_instances || 0),
+      activeInstances: Number(summary.active_instances || 0) - Number(previousSummary?.active_instances || 0),
+      chinaExposedServices:
+        currentChinaExposedServices - Number(previousSummary?.china_exposed_services || 0),
+      chinaActiveInstances:
+        currentChinaActiveInstances - Number(previousSummary?.china_active_instances || 0),
+      countryCount: Number(summary.country_count || 0) - Number(previousSummary?.country_count || 0),
+      provinceCount: currentProvinceCount - Number(previousSummary?.province_count || 0),
+      cityCount: currentCityCount - Number(previousSummary?.city_count || 0),
+      historicalVulnerableInstances:
+        Number(summary.historical_vulnerable_instances || 0) -
+        Number(previousSummary?.historical_vulnerable_instances || 0),
+      historicalMatchedVulnerabilityCount:
+        Number(summary.historical_matched_vulnerability_count || 0) -
+        Number(previousSummary?.historical_matched_vulnerability_count || 0),
+    };
 
     return {
       totalExposedServices: summary.total_instances,
       activeInstances: summary.active_instances || 0,
-      chinaExposedServices: chinaStats?.total_china_instances || 0,
-      chinaActiveInstances: chinaStats?.active_china_instances || 0,
-      provinceCount: chinaStats?.province_count || 0,
-      cityCount: chinaStats?.city_count || 0,
+      chinaExposedServices: currentChinaExposedServices,
+      chinaActiveInstances: currentChinaActiveInstances,
+      provinceCount: currentProvinceCount,
+      cityCount: currentCityCount,
+      countryCount: summary.country_count || 0,
       criticalExposures: summary.critical_count,
       highRiskExposures: summary.high_count,
       mediumRiskExposures: summary.medium_count,
@@ -119,6 +146,7 @@ class ExposureDatabaseService {
       historicalVulnerableInstances: summary.historical_vulnerable_instances || 0,
       historicalVulnerableActiveInstances: summary.historical_vulnerable_active_instances || 0,
       historicalMatchedVulnerabilityCount: summary.historical_matched_vulnerability_count || 0,
+      deltas,
       lastScanTime: summary.last_scan_time,
       topCountries: topCountries.map((country) => ({
         country: country.country_name,
@@ -219,7 +247,7 @@ class ExposureDatabaseService {
 
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const page = Math.max(filters.page || 1, 1);
-    const limit = Math.min(Math.max(filters.limit || 20, 1), 100);
+    const limit = Math.min(Math.max(filters.limit || 20, 1), 30);
     const offset = (page - 1) * limit;
 
     const [countResult] = await this.query<any>(

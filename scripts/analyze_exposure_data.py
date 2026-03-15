@@ -410,7 +410,6 @@ def analyze_exposure_data():
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM exposure_instances")
-    cursor.execute("DELETE FROM exposure_summary")
     cursor.execute("DELETE FROM exposure_country_stats")
     cursor.execute("DELETE FROM exposure_isp_stats")
     cursor.execute("DELETE FROM exposure_port_stats")
@@ -575,19 +574,40 @@ def analyze_exposure_data():
 
     total_instances = total
     last_scan_time = max(last_scan_candidates) if last_scan_candidates else None
+    china_exposed_services = sum(
+        1 for china_meta in china_instance_map.values() if china_meta.get("is_china_instance") == "Yes"
+    )
+    china_active_instances = 0
+    for ip_port, china_meta in china_instance_map.items():
+        if china_meta.get("is_china_instance") != "Yes":
+            continue
+        if runtime_probe_map.get(ip_port, {}).get("runtime_status") == "Active":
+            china_active_instances += 1
+    province_count = len(province_counter)
+    city_count = sum(
+        1
+        for _, cities in province_city_counter.items()
+        for city_name, city_value in cities.items()
+        if city_name and city_value > 0
+    )
 
     cursor.execute(
         """
         INSERT INTO exposure_summary (
-            total_instances, active_instances, clean_count, leaked_count, credentials_yes, credentials_no,
+            total_instances, active_instances, china_exposed_services, china_active_instances, province_count, city_count,
+            clean_count, leaked_count, credentials_yes, credentials_no,
             credentials_unknown, critical_count, high_count, medium_count, low_count,
             country_count, historical_vulnerable_instances, historical_vulnerable_active_instances,
             historical_matched_vulnerability_count, last_scan_time
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             total_instances,
             active_instances,
+            china_exposed_services,
+            china_active_instances,
+            province_count,
+            city_count,
             status_counter["Clean"],
             status_counter["Leaked"],
             credentials_counter["Yes"],

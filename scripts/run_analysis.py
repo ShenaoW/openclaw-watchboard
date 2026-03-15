@@ -4,6 +4,7 @@
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
 
 # 配置路径
@@ -46,6 +47,10 @@ def main():
     overall_start_time = time.time()
 
     # 运行分析脚本
+    has_vuln_sync_credentials = bool(
+        os.getenv("OPENCLAW_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN")
+    )
+
     scripts = [
         ("setup_database.py", "数据库初始化"),
         ("analyze_clawhub_skills.py", "ClawHub技能数据分析"),
@@ -53,9 +58,17 @@ def main():
         ("generate_statistics.py", "Skills统计数据生成"),
         ("generate_skills_source_chart.py", "Skills数据源静态图生成"),
         ("analyze_exposure_data.py", "Exposure数据分析"),
-        ("analyze_vulnerabilities.py", "漏洞标注分析"),
-        ("import_vulnerabilities_to_db.py", "漏洞数据入库"),
     ]
+
+    if has_vuln_sync_credentials:
+        scripts.append(("update_openclaw_vulnerabilities.py", "GitHub漏洞同步与入库"))
+    else:
+        scripts.extend(
+            [
+                ("analyze_vulnerabilities.py", "漏洞标注分析"),
+                ("import_vulnerabilities_to_db.py", "漏洞数据入库"),
+            ]
+        )
 
     success_count = 0
 

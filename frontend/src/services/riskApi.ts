@@ -67,7 +67,11 @@ const getApiBase = () => {
 const API_BASE = getApiBase();
 
 async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`);
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      'X-Watchboard-Client': 'web',
+    },
+  });
   const data = await response.json();
 
   if (!response.ok || !data.success) {

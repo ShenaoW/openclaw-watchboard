@@ -215,7 +215,7 @@ class SkillDataService {
 
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const page = Math.max(filters.page || 1, 1);
-    const limit = Math.min(Math.max(filters.limit || 20, 1), 100);
+    const limit = Math.min(Math.max(filters.limit || 20, 1), 30);
     const offset = (page - 1) * limit;
 
     const [countResult] = await this.query<any>(
