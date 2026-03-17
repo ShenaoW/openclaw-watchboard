@@ -14,8 +14,39 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from common import ensure_parent, log, read_csv_rows
+from common import ensure_parent, log, normalize_location_fields, read_csv_rows
 from constants import FOFA_CACHE_DIR, FOFA_FIELDS, FOFA_SEARCH_ALL_API_URL
+
+LEGACY_FOFA_FIELD_MAP = {
+    "国家名": "country_name",
+    "区域": "region",
+    "城市": "city",
+    "经度": "longitude",
+    "纬度": "latitude",
+    "ASN编号": "asn",
+    "ASN组织": "org",
+    "主机名": "host",
+    "域名": "domain",
+    "操作系统": "os",
+    "Server": "server",
+    "网站标题": "title",
+    "JARM指纹": "jarm",
+    "URL链接": "link",
+}
+
+
+def is_unlimited_max_records(value: int) -> bool:
+    return value <= 0
+
+
+def build_effective_query(args: argparse.Namespace) -> str:
+    query = (args.query or "").strip() or 'app="openclaw"'
+    after_date = (getattr(args, "fofa_after_date", "") or "").strip()
+    if not after_date and getattr(args, "fofa_daily_only", False):
+        after_date = dt.date.today().isoformat()
+    if after_date:
+        query = f'{query} && after="{after_date}"'
+    return query
 
 
 def fetch_fofa_page(opener: urllib.request.OpenerDirector, request: urllib.request.Request, timeout: int, retries: int) -> dict:
@@ -44,12 +75,18 @@ def normalize_fofa_result(item: dict) -> list[str]:
     else:
         os_text = str(os_value or "")
 
+    country_name, region, city = normalize_location_fields(
+        str(location.get("country_name") or item.get("country_name") or ""),
+        str(location.get("region") or item.get("region") or ""),
+        str(location.get("city") or item.get("city") or ""),
+    )
+
     normalized = {
         "ip": str(item.get("ip") or ""),
         "port": str(item.get("port") or ""),
-        "country_name": str(location.get("country_name") or item.get("country_name") or ""),
-        "region": str(location.get("region") or item.get("region") or ""),
-        "city": str(location.get("city") or item.get("city") or ""),
+        "country_name": country_name,
+        "region": region,
+        "city": city,
         "longitude": str(location.get("longitude") or item.get("longitude") or ""),
         "latitude": str(location.get("latitude") or item.get("latitude") or ""),
         "asn": str(item.get("asn") or ""),
@@ -95,7 +132,9 @@ def parse_total_available(data: dict, fallback_count: int) -> int:
 
 
 def fetch_fofa_all_mode(args: argparse.Namespace, writer: csv.writer, opener: urllib.request.OpenerDirector, qbase64: str) -> int:
-    requested_page_size = max(1, min(args.page_size, args.max_records, 10000))
+    requested_page_size = max(1, min(args.page_size, 10000))
+    if not is_unlimited_max_records(args.max_records):
+        requested_page_size = min(requested_page_size, args.max_records)
     params = {
         "key": args.fofa_key,
         "qbase64": qbase64,
@@ -119,7 +158,7 @@ def fetch_fofa_all_mode(args: argparse.Namespace, writer: csv.writer, opener: ur
         return 0
 
     total_available = parse_total_available(first_page, len(first_results))
-    total_target = min(args.max_records, total_available)
+    total_target = total_available if is_unlimited_max_records(args.max_records) else min(args.max_records, total_available)
     per_page = max(1, min(requested_page_size, total_target))
     total_pages = max(1, math.ceil(total_target / per_page))
 
@@ -168,9 +207,10 @@ def fetch_fofa_all_mode(args: argparse.Namespace, writer: csv.writer, opener: ur
 
 
 def build_cache_snapshot_path(args: argparse.Namespace, cache_path: Path) -> Path:
-    query_slug = re.sub(r"[^a-z0-9]+", "_", (args.query or "openclaw").lower()).strip("_") or "openclaw"
+    query_slug = re.sub(r"[^a-z0-9]+", "_", build_effective_query(args).lower()).strip("_") or "openclaw"
     date_prefix = dt.date.today().strftime("%Y%m%d")
-    filename = f"{date_prefix}_{query_slug}_{args.max_records}.csv"
+    max_records_label = "all" if is_unlimited_max_records(args.max_records) else str(args.max_records)
+    filename = f"{date_prefix}_{query_slug}_{max_records_label}.csv"
     return cache_path.parent / "history" / filename
 
 
@@ -199,6 +239,56 @@ def save_cache_copy(source_path: Path, cache_path: Path, args: argparse.Namespac
     log(f"saved FOFA cache snapshot: {snapshot_path}")
 
 
+def split_legacy_ip_port(value: str) -> tuple[str, str]:
+    text = (value or "").strip()
+    if not text:
+        return "", ""
+    if ":" not in text:
+        return text, ""
+    ip, port = text.rsplit(":", 1)
+    return ip.strip(), port.strip()
+
+
+def normalize_fofa_input_row(row: dict[str, str]) -> dict[str, str]:
+    normalized = {field: "" for field in FOFA_FIELDS}
+
+    if any(key in row for key in ("ip", "port")):
+        for field in FOFA_FIELDS:
+            normalized[field] = str(row.get(field) or "").strip()
+        normalized["country_name"], normalized["region"], normalized["city"] = normalize_location_fields(
+            normalized["country_name"],
+            normalized["region"],
+            normalized["city"],
+        )
+        return normalized
+
+    if "IP地址" in row:
+        ip, port = split_legacy_ip_port(str(row.get("IP地址") or ""))
+        normalized["ip"] = ip
+        normalized["port"] = port
+        for source_field, target_field in LEGACY_FOFA_FIELD_MAP.items():
+            normalized[target_field] = str(row.get(source_field) or "").strip()
+        if not normalized["link"]:
+            extra_values = row.get(None) or []
+            if isinstance(extra_values, list) and extra_values:
+                normalized["link"] = str(extra_values[0] or "").strip()
+        normalized["country_name"], normalized["region"], normalized["city"] = normalize_location_fields(
+            normalized["country_name"],
+            normalized["region"],
+            normalized["city"],
+        )
+        return normalized
+
+    for field in FOFA_FIELDS:
+        normalized[field] = str(row.get(field) or "").strip()
+    normalized["country_name"], normalized["region"], normalized["city"] = normalize_location_fields(
+        normalized["country_name"],
+        normalized["region"],
+        normalized["city"],
+    )
+    return normalized
+
+
 def fetch_fofa_csv(args: argparse.Namespace, out_path: Path) -> Path:
     if args.fofa_input:
         fofa_input = Path(args.fofa_input)
@@ -215,7 +305,8 @@ def fetch_fofa_csv(args: argparse.Namespace, out_path: Path) -> Path:
     if not args.fofa_key:
         raise RuntimeError("Missing FOFA key. Pass --fofa-key or use --fofa-input.")
 
-    qbase64 = base64.b64encode(args.query.encode("utf-8")).decode("ascii")
+    effective_query = build_effective_query(args)
+    qbase64 = base64.b64encode(effective_query.encode("utf-8")).decode("ascii")
     ensure_parent(out_path)
 
     with out_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -232,4 +323,4 @@ def fetch_fofa_csv(args: argparse.Namespace, out_path: Path) -> Path:
 
 def load_fofa_rows(fofa_csv: Path) -> list[dict[str, str]]:
     _, rows = read_csv_rows(fofa_csv)
-    return rows
+    return [normalize_fofa_input_row(row) for row in rows]

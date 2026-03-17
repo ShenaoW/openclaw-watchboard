@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
+
+from common import log
 
 
 def fetch_url(url: str, timeout: int) -> tuple[str, str | None]:
@@ -68,14 +71,32 @@ def probe_instance(ip_port: str, timeout: int) -> dict[str, Any]:
     return result
 
 
-def probe_many(ip_ports: list[str], concurrency: int, timeout: int) -> dict[str, dict[str, Any]]:
+def probe_many(
+    ip_ports: list[str],
+    concurrency: int,
+    timeout: int,
+    progress_label: str = "",
+    progress_interval: int = 500,
+) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
     if not ip_ports:
         return results
+
+    total = len(ip_ports)
+    completed = 0
+    interval = max(1, progress_interval)
+    next_report = min(interval, total)
+    if progress_label:
+        log(f"{progress_label}: 0/{total} (0.0%)")
 
     with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
         future_map = {executor.submit(probe_instance, ip_port, timeout): ip_port for ip_port in ip_ports}
         for future in as_completed(future_map):
             ip_port = future_map[future]
             results[ip_port] = future.result()
+            completed += 1
+            if progress_label and (completed >= next_report or completed == total):
+                percent = math.floor((completed / total) * 1000) / 10
+                log(f"{progress_label}: {completed}/{total} ({percent:.1f}%)")
+                next_report += interval
     return results

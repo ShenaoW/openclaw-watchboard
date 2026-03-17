@@ -52,15 +52,6 @@ export class ExposureController {
     }
   }
 
-  async getRiskLevelDistribution(req: Request, res: Response, next: NextFunction) {
-    try {
-      const riskDistribution = await exposureDatabaseService.getRiskLevelDistribution();
-      res.json({ success: true, data: riskDistribution });
-    } catch (error) {
-      next(error);
-    }
-  }
-
   async getExposureTrends(req: Request, res: Response, next: NextFunction) {
     try {
       const trends = await exposureDatabaseService.getTrends((req.query.timeRange as string) || '7d');

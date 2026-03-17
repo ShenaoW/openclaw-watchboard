@@ -85,7 +85,9 @@ This syncs all `.db` files under `data/` to the remote server and restarts the b
 
 The sync script is:
 
-- [`scripts/sync_databases_to_tencent.sh`](/Users/shawn/Desktop/openclaw-watchboard/scripts/sync_databases_to_tencent.sh)
+- [`scripts/sync_databases_to_server.sh`](/Users/shawn/Desktop/openclaw-watchboard/scripts/sync_databases_to_server.sh)
+
+For Tencent, `npm run sync:databases` is equivalent to running the generic sync script with host `tencent`.
 
 It is expected to:
 

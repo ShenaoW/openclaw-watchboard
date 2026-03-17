@@ -73,6 +73,56 @@ class ExposureDatabaseService {
     }
   }
 
+  private normalizeCountryName(value?: string | null) {
+    return (value || '').trim();
+  }
+
+  private normalizeProvinceName(value?: string | null) {
+    const trimmed = (value || '').trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    const aliasMap: Record<string, string> = {
+      北京市: 'Beijing',
+      上海市: 'Shanghai',
+      天津市: 'Tianjin',
+      重庆市: 'Chongqing',
+      广东省: 'Guangdong',
+      浙江省: 'Zhejiang',
+      江苏省: 'Jiangsu',
+      山东省: 'Shandong',
+      四川省: 'Sichuan',
+      湖北省: 'Hubei',
+      湖南省: 'Hunan',
+      河南省: 'Henan',
+      河北省: 'Hebei',
+      福建省: 'Fujian',
+      安徽省: 'Anhui',
+      江西省: 'Jiangxi',
+      陕西省: 'Shaanxi',
+      辽宁省: 'Liaoning',
+      吉林省: 'Jilin',
+      黑龙江省: 'Heilongjiang',
+      广西壮族自治区: 'Guangxi',
+      云南省: 'Yunnan',
+      贵州省: 'Guizhou',
+      甘肃省: 'Gansu',
+      山西省: 'Shanxi',
+      内蒙古自治区: 'InnerMongolia',
+      新疆维吾尔自治区: 'Xinjiang',
+      西藏自治区: 'Tibet',
+      青海省: 'Qinghai',
+      宁夏回族自治区: 'Ningxia',
+      海南省: 'Hainan',
+      香港特别行政区: 'HongKong',
+      澳门特别行政区: 'Macau',
+      台湾省: 'Taiwan',
+    };
+
+    return aliasMap[trimmed] || trimmed.replace(/\s+/g, '');
+  }
+
   async getOverview() {
     const summaries = await this.query<any>(
       `
@@ -92,7 +142,7 @@ class ExposureDatabaseService {
 
     const topCountries = await this.query<any>(
       `
-      SELECT country_name, count, critical_count, high_count, medium_count, low_count
+      SELECT country_name, count
       FROM exposure_country_stats
       ORDER BY count DESC
       LIMIT 5
@@ -101,7 +151,7 @@ class ExposureDatabaseService {
 
     const topPorts = await this.query<any>(
       `
-      SELECT port, service, count, risk
+      SELECT port, service, count
       FROM exposure_port_stats
       ORDER BY count DESC
       LIMIT 5
@@ -139,10 +189,6 @@ class ExposureDatabaseService {
       provinceCount: currentProvinceCount,
       cityCount: currentCityCount,
       countryCount: summary.country_count || 0,
-      criticalExposures: summary.critical_count,
-      highRiskExposures: summary.high_count,
-      mediumRiskExposures: summary.medium_count,
-      lowRiskExposures: summary.low_count,
       historicalVulnerableInstances: summary.historical_vulnerable_instances || 0,
       historicalVulnerableActiveInstances: summary.historical_vulnerable_active_instances || 0,
       historicalMatchedVulnerabilityCount: summary.historical_matched_vulnerability_count || 0,
@@ -156,7 +202,6 @@ class ExposureDatabaseService {
         port: port.port,
         service: port.service,
         count: port.count,
-        risk: port.risk,
       })),
     };
   }
@@ -261,13 +306,11 @@ class ExposureDatabaseService {
       FROM exposure_instances
       ${whereClause}
       ORDER BY
-        CASE risk_level
-          WHEN 'Critical' THEN 1
-          WHEN 'High' THEN 2
-          WHEN 'Medium' THEN 3
-          ELSE 4
+        CASE runtime_status
+          WHEN 'Active' THEN 1
+          ELSE 2
         END,
-        risk_score DESC,
+        historical_vuln_count DESC,
         last_seen DESC
       LIMIT ? OFFSET ?
       `,
@@ -320,7 +363,7 @@ class ExposureDatabaseService {
   async getGeographicDistribution() {
     const world = await this.query<any>(
       `
-      SELECT country_name, count, critical_count, high_count, medium_count, low_count
+      SELECT country_name, count
       FROM exposure_country_stats
       ORDER BY count DESC
       LIMIT 20
@@ -329,7 +372,7 @@ class ExposureDatabaseService {
 
     const provinces = await this.query<any>(
       `
-      SELECT province, city, count
+      SELECT province, count
       FROM exposure_province_stats
       WHERE province IS NOT NULL AND province != ''
       ORDER BY count DESC
@@ -338,16 +381,37 @@ class ExposureDatabaseService {
     );
 
     const coordinates: Record<string, { code: string; lat: number; lng: number }> = {
+      中国: { code: 'CHN', lat: 35.8617, lng: 104.1954 },
       'China mainland': { code: 'CHN', lat: 35.8617, lng: 104.1954 },
+      美国: { code: 'USA', lat: 37.0902, lng: -95.7129 },
       'United States': { code: 'USA', lat: 37.0902, lng: -95.7129 },
+      新加坡: { code: 'SGP', lat: 1.3521, lng: 103.8198 },
       Singapore: { code: 'SGP', lat: 1.3521, lng: 103.8198 },
+      德国: { code: 'DEU', lat: 51.1657, lng: 10.4515 },
       Germany: { code: 'DEU', lat: 51.1657, lng: 10.4515 },
+      中国香港特别行政区: { code: 'HKG', lat: 22.3193, lng: 114.1694 },
+      香港特别行政区: { code: 'HKG', lat: 22.3193, lng: 114.1694 },
       'Hong Kong': { code: 'HKG', lat: 22.3193, lng: 114.1694 },
+      日本: { code: 'JPN', lat: 36.2048, lng: 138.2529 },
       Japan: { code: 'JPN', lat: 36.2048, lng: 138.2529 },
+      俄罗斯: { code: 'RUS', lat: 61.524, lng: 105.3188 },
       Russia: { code: 'RUS', lat: 61.524, lng: 105.3188 },
+      加拿大: { code: 'CAN', lat: 56.1304, lng: -106.3468 },
       Canada: { code: 'CAN', lat: 56.1304, lng: -106.3468 },
+      法国: { code: 'FRA', lat: 46.2276, lng: 2.2137 },
       France: { code: 'FRA', lat: 46.2276, lng: 2.2137 },
+      荷兰: { code: 'NLD', lat: 52.1326, lng: 5.2913 },
       Netherlands: { code: 'NLD', lat: 52.1326, lng: 5.2913 },
+      芬兰: { code: 'FIN', lat: 61.9241, lng: 25.7482 },
+      英国: { code: 'GBR', lat: 55.3781, lng: -3.436 },
+      印度: { code: 'IND', lat: 20.5937, lng: 78.9629 },
+      澳大利亚: { code: 'AUS', lat: -25.2744, lng: 133.7751 },
+      韩国: { code: 'KOR', lat: 35.9078, lng: 127.7669 },
+      马来西亚: { code: 'MYS', lat: 4.2105, lng: 101.9758 },
+      巴西: { code: 'BRA', lat: -14.235, lng: -51.9253 },
+      越南: { code: 'VNM', lat: 14.0583, lng: 108.2772 },
+      印度尼西亚: { code: 'IDN', lat: -0.7893, lng: 113.9213 },
+      爱尔兰: { code: 'IRL', lat: 53.1424, lng: -7.6921 },
     };
 
     const provinceCoordinates: Record<string, { lat: number; lng: number }> = {
@@ -389,7 +453,8 @@ class ExposureDatabaseService {
 
     return {
       world: world.map((row) => {
-        const location = coordinates[row.country_name] || { code: 'UNK', lat: 0, lng: 0 };
+        const location =
+          coordinates[this.normalizeCountryName(row.country_name)] || { code: 'UNK', lat: 0, lng: 0 };
 
         return {
           country: row.country_name,
@@ -401,7 +466,7 @@ class ExposureDatabaseService {
       }),
       heatmap: world
         .map((row) => {
-          const location = coordinates[row.country_name];
+          const location = coordinates[this.normalizeCountryName(row.country_name)];
           if (!location) {
             return null;
           }
@@ -416,7 +481,7 @@ class ExposureDatabaseService {
         .filter(Boolean),
       china: provinces
         .map((row) => {
-          const key = (row.province || '').replace(/\s+/g, '');
+          const key = this.normalizeProvinceName(row.province);
           const location = provinceCoordinates[key] || provinceCoordinates[row.province] || null;
           if (!location) {
             return null;
@@ -424,7 +489,6 @@ class ExposureDatabaseService {
 
           return {
             province: row.province,
-            city: row.city,
             count: row.count,
             lat: location.lat,
             lng: location.lng,
@@ -433,25 +497,16 @@ class ExposureDatabaseService {
         .filter(Boolean),
       provinceTop: provinces.slice(0, 5).map((row) => ({
         province: row.province,
-        city: row.city,
         count: row.count,
       })),
-      cityTop: provinces
-        .slice()
-        .sort((a, b) => b.count - a.count)
-        .map((row) => ({
-          province: row.province,
-          city: row.city,
-          count: row.count,
-        }))
-        .slice(0, 5),
+      cityTop: [],
     };
   }
 
   async getPortDistribution() {
     const rows = await this.query<any>(
       `
-      SELECT port, service, count, percentage, risk
+      SELECT port, service, count, percentage
       FROM exposure_port_stats
       ORDER BY count DESC
       LIMIT 20
@@ -465,51 +520,6 @@ class ExposureDatabaseService {
         count: row.count,
         percentage: row.percentage,
       })),
-      unusual: rows
-        .filter((row) => ['high', 'medium'].includes(row.risk))
-        .slice(0, 10)
-        .map((row) => ({
-          port: row.port,
-          service: row.service,
-          count: row.count,
-          risk: row.risk,
-        })),
-    };
-  }
-
-  async getRiskLevelDistribution() {
-    const [summary] = await this.query<any>(
-      `
-      SELECT *
-      FROM exposure_summary
-      ORDER BY generated_at DESC, id DESC
-      LIMIT 1
-      `,
-    );
-
-    if (!summary) {
-      throw new Error('No exposure summary found in database');
-    }
-
-    const total = summary.total_instances || 1;
-    const levels = [
-      { level: 'Critical', count: summary.critical_count, color: '#ff4d4f' },
-      { level: 'High', count: summary.high_count, color: '#ff7a45' },
-      { level: 'Medium', count: summary.medium_count, color: '#ffa940' },
-      { level: 'Low', count: summary.low_count, color: '#52c41a' },
-    ];
-
-    return {
-      levels: levels.map((item) => ({
-        ...item,
-        percentage: Number(((item.count * 100) / total).toFixed(2)),
-      })),
-      trend: {
-        critical: { current: summary.critical_count, previous: summary.critical_count, change: 0 },
-        high: { current: summary.high_count, previous: summary.high_count, change: 0 },
-        medium: { current: summary.medium_count, previous: summary.medium_count, change: 0 },
-        low: { current: summary.low_count, previous: summary.low_count, change: 0 },
-      },
     };
   }
 

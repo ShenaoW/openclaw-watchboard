@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from common import country_code_from_name, read_csv_rows, write_csv_rows
+from common import country_code_from_name, normalize_location_fields, read_csv_rows, write_csv_rows
 from constants import ALIVE_FIELDS, CN_FIELDS, DEDUPED_FIELDS, FOFA_FIELDS, TODAY
 from repository import load_probe_instances
 
@@ -17,8 +17,9 @@ def export_deduped_csv(conn: sqlite3.Connection, deduped_csv: Path) -> int:
 
     for item in load_probe_instances(conn):
         row = row_map.get(item["ip_port"], {field: "" for field in header})
+        country_name, _, _ = normalize_location_fields(item["country_name"] or "", item["region"] or "", item["city"] or "")
         row["ip_port"] = item["ip_port"]
-        row["country"] = row.get("country") or item["country_name"] or ""
+        row["country"] = country_name or row.get("country") or ""
         row["is_active"] = "True" if item["is_active"] else "False"
         row["asn"] = item["asn"] or row.get("asn", "")
         row["asn_name"] = row.get("asn_name") or item["org"] or ""
@@ -80,7 +81,8 @@ def export_alive_files(
 def export_cn_csv(conn: sqlite3.Connection, cn_csv: Path) -> int:
     rows: list[dict[str, Any]] = []
     for item in load_probe_instances(conn):
-        code = country_code_from_name(item["country_name"] or "")
+        country_name, region, city = normalize_location_fields(item["country_name"] or "", item["region"] or "", item["city"] or "")
+        code = country_code_from_name(country_name)
         if code not in {"CN", "HK", "TW", "MO"}:
             continue
 
@@ -88,7 +90,7 @@ def export_cn_csv(conn: sqlite3.Connection, cn_csv: Path) -> int:
             {
                 "ip_port": item["ip_port"],
                 "assistant_name": "",
-                "country": item["country_name"] or "",
+                "country": country_name or "",
                 "auth_required": "",
                 "is_active": "True" if item["is_active"] else "False",
                 "has_leaked_creds": "",
@@ -104,8 +106,8 @@ def export_cn_csv(conn: sqlite3.Connection, cn_csv: Path) -> int:
                 "asi_enriched_at": TODAY,
                 "asi_domains": "",
                 "physical_country": code,
-                "region": item["region"] or "",
-                "city": item["city"] or "",
+                "region": region or "",
+                "city": city or "",
             }
         )
 

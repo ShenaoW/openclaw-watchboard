@@ -14,6 +14,16 @@ from constants import (
 from pipeline import run_pipeline
 
 
+def parse_max_records(value: str) -> int:
+    normalized = str(value).strip().lower()
+    if normalized in {"all", "max", "unlimited"}:
+        return 0
+    try:
+        return int(normalized)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("--max-records must be an integer or 'all'") from error
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Fetch FOFA full data, probe incremental OpenClaw instances, refresh runtime state, and update exposure inputs."
@@ -21,6 +31,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fofa-input", type=str, help="Use an existing FOFA CSV instead of fetching from FOFA.")
     parser.add_argument("--fofa-key", default="", help="FOFA key.")
     parser.add_argument("--query", default='app="openclaw"', help="FOFA query.")
+    parser.add_argument(
+        "--fofa-daily-only",
+        action="store_true",
+        help="Append a FOFA after=TODAY filter so daily runs only fetch today's data.",
+    )
+    parser.add_argument(
+        "--fofa-after-date",
+        default="",
+        help="Append a FOFA after=\"YYYY-MM-DD\" filter to restrict fetched data.",
+    )
     parser.add_argument(
         "--fofa-fetch-mode",
         choices=("all",),
@@ -43,7 +63,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only read the local FOFA cache and do not fetch FOFA remotely.",
     )
-    parser.add_argument("--max-records", type=int, default=10000, help="Maximum FOFA records to fetch.")
+    parser.add_argument(
+        "--max-records",
+        type=parse_max_records,
+        default=10000,
+        help="Maximum FOFA records to fetch. Use 0 or 'all' to fetch all available rows.",
+    )
     parser.add_argument("--page-size", type=int, default=10000, help="FOFA page size. Default uses the maximum allowed page size.")
     parser.add_argument("--sleep", type=float, default=0.2, help="Sleep seconds between FOFA requests.")
     parser.add_argument("--fofa-timeout", type=int, default=60, help="Per-request FOFA timeout in seconds.")

@@ -7,6 +7,7 @@
    - 同时按日期写入 `data/explosure/fofa_cache/history/`
    - 默认只使用 `search/all?page=`
    - 首次请求会读取响应里的总量，然后按尽量大的 `size` 计算总页数，减少抓取次数
+   - 日常一键更新默认会自动附加 `after="当天日期"`，避免每天全量重抓 FOFA 历史数据
 2. 找出相对当前实例库的新增 `ip:port`
 3. 对新增目标只探测 `/health` 和 `__openclaw/control-ui-config.json`
 4. 只有 `health=200` 且 config 能成功返回版本配置的目标才会入库
@@ -62,6 +63,14 @@
   - 不会继续做探测、落库、快照和数据库更新
 - 当前 `--fofa-fetch-mode` 仅保留 `all`
   - 主流程只使用 `search/all?page=`
+- 日常脚本默认开启 `--fofa-daily-only`
+  - 等价于在原查询后追加 `&& after="YYYY-MM-DD"`
+  - 如需抓历史全量，可以设置 `OPENCLAW_PROBE_DAILY_ONLY=0`
+- 也可以手动指定起始日期
+  - 例如 `--fofa-after-date 2026-03-15`
+- `--fofa-input` 除了支持当前标准表头，也兼容旧版 FOFA 中文导出
+  - 例如 `IP地址 / 国家名 / 区域 / 城市 ...`
+  - 其中 `IP地址` 为 `ip:port` 合并列时，会在导入时自动拆分
 
 ## Daily Commands
 
@@ -88,6 +97,12 @@ FOFA_KEY='your-key' /bin/zsh scripts/run_openclaw_probe_pipeline.sh
 ```bash
 # 只抓取 FOFA 缓存
 FOFA_KEY='your-key' OPENCLAW_PROBE_FETCH_ONLY=1 OPENCLAW_PROBE_WRITE_LIVE=0 OPENCLAW_PROBE_REFRESH_DB=0 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# 默认日更只抓当天数据；如果要改成指定日期起点：
+FOFA_KEY='your-key' OPENCLAW_PROBE_AFTER_DATE=2026-03-15 /bin/zsh scripts/run_openclaw_probe_pipeline.sh
+
+# 如果要临时做一次历史全量抓取：
+FOFA_KEY='your-key' OPENCLAW_PROBE_DAILY_ONLY=0 OPENCLAW_PROBE_MAX_RECORDS=all /bin/zsh scripts/run_openclaw_probe_pipeline.sh
 
 # 只使用本地缓存跑后续更新
 OPENCLAW_PROBE_CACHE_ONLY=1 /bin/zsh scripts/run_openclaw_probe_pipeline.sh

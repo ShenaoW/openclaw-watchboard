@@ -20,6 +20,7 @@ GENDIGITAL_FILES = [
     DATA_DIR / "gendigital_malicious.json",
 ]
 KOI_MALICIOUS_FILE = DATA_DIR / "koi_malicious_skills.txt"
+CLAWSEC_CONFIRMED_DIR = DATA_DIR / "malicious_confirmed"
 
 
 def categorize_skill(skill_name: str, description: str = "") -> str:
@@ -52,6 +53,15 @@ def normalize_date(value: Optional[str]) -> str:
         return ""
     match = re.match(r"(\d{4}-\d{2}-\d{2})", value)
     return match.group(1) if match else value
+
+
+def normalize_timestamp_millis(value) -> str:
+    if not value:
+        return ""
+    try:
+        return datetime.fromtimestamp(int(value) / 1000, timezone.utc).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, OSError):
+        return ""
 
 
 def make_skills_sh_id(source: str, skill_id: str, fallback_name: str) -> str:
@@ -318,6 +328,101 @@ def import_koi(cursor):
     return total_count
 
 
+def import_clawsec_confirmed(cursor):
+    if not CLAWSEC_CONFIRMED_DIR.exists():
+        print("ℹ️ 未找到 clawsec 确认恶意技能目录，跳过")
+        return 0
+
+    cursor.execute("DELETE FROM skills WHERE source = 'clawsec'")
+
+    total_count = 0
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    for meta_file in sorted(CLAWSEC_CONFIRMED_DIR.rglob("_meta.json")):
+        version_dir = meta_file.parent
+        owner_dir = version_dir.parent.parent
+        owner = owner_dir.name
+
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8").lstrip("\ufeff"))
+        except json.JSONDecodeError as exc:
+            print(f"⚠️  解析 clawsec 元数据失败 {meta_file}: {exc}")
+            continue
+
+        slug = (meta.get("slug") or owner_dir.name or version_dir.name).strip()
+        display_name = (meta.get("displayName") or slug or "unknown").strip()
+        latest = meta.get("latest") or {}
+        version = (latest.get("version") or "1.0.0").strip()
+        published_at = normalize_timestamp_millis(latest.get("publishedAt"))
+        repository = (latest.get("commit") or "").strip()
+
+        audit_file = version_dir.with_name(f"{version_dir.name}_audit.json")
+        audit_summary = {}
+        if audit_file.exists():
+            try:
+                audit_payload = json.loads(audit_file.read_text(encoding="utf-8").lstrip("\ufeff"))
+                audit_summary = audit_payload.get("audit_summary") or {}
+            except json.JSONDecodeError as exc:
+                print(f"⚠️  解析 clawsec 审计文件失败 {audit_file}: {exc}")
+
+        description = (audit_summary.get("summary_text") or display_name or slug).strip()
+        skill_file = version_dir / "SKILL.md"
+        skill_content = skill_file.read_text(encoding="utf-8") if skill_file.exists() else ""
+
+        file_structure = sorted(
+            [
+                item.name
+                for item in version_dir.iterdir()
+                if not item.name.startswith(".") and item.name != "_meta.json"
+            ]
+        )
+
+        dependencies = meta.get("history") if isinstance(meta.get("history"), list) else []
+        category = categorize_skill(slug, description)
+        existing_clawhub_id = f"clawhub-{owner}-{slug}"
+
+        existing_row = cursor.execute(
+            "SELECT id FROM skills WHERE id = ?",
+            (existing_clawhub_id,),
+        ).fetchone()
+        skill_id = existing_clawhub_id if existing_row else f"clawsec-{owner}-{slug}"
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO skills
+            (id, name, version, description, category, maintainer, source, classification,
+             security_score, downloads, rating, verified, last_updated, permissions,
+             repository, file_structure, dependencies, skill_content, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                skill_id,
+                slug,
+                version,
+                description,
+                category,
+                owner,
+                "clawsec",
+                "malicious",
+                0,
+                0,
+                0.0,
+                True,
+                published_at,
+                json.dumps([]),
+                repository,
+                json.dumps(file_structure),
+                json.dumps(dependencies),
+                skill_content,
+                today,
+            ),
+        )
+        total_count += 1
+
+    print(f"✅ 已导入 clawsec 确认恶意技能: {total_count} 条")
+    return total_count
+
+
 def main():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -325,6 +430,7 @@ def main():
     skills_sh_count = import_skills_sh(cursor)
     gendigital_count = import_gendigital(cursor)
     koi_count = import_koi(cursor)
+    clawsec_count = import_clawsec_confirmed(cursor)
 
     conn.commit()
     conn.close()
@@ -333,6 +439,7 @@ def main():
     print(f"   skills.sh: {skills_sh_count}")
     print(f"   gendigital: {gendigital_count}")
     print(f"   koi: {koi_count}")
+    print(f"   clawsec: {clawsec_count}")
 
 
 if __name__ == "__main__":

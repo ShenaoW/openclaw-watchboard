@@ -8,7 +8,7 @@ from pathlib import Path
 from common import build_ip_port, log
 from constants import ROOT_DIR, RUNS_DIR
 from exporters import export_alive_files, export_cn_csv, export_deduped_csv, save_run_artifacts
-from fofa import fetch_fofa_csv, load_fofa_rows
+from fofa import build_effective_query, fetch_fofa_csv, load_fofa_rows
 from prober import probe_many
 from repository import (
     bootstrap_instances,
@@ -39,7 +39,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
     tracker = RunStatusTracker(run_dir)
 
     try:
-        tracker.set_stage("fetch_fofa", {"query": args.query, "max_records": args.max_records})
+        tracker.set_stage("fetch_fofa", {"query": build_effective_query(args), "max_records": args.max_records})
         fofa_csv = fetch_fofa_csv(args, run_dir / "fofa_openclaw_raw.csv")
         tracker.set_metric("fofa_source_path", str(fofa_csv))
         fofa_rows = load_fofa_rows(fofa_csv)
@@ -79,14 +79,25 @@ def run_pipeline(args: argparse.Namespace) -> int:
         tracker.set_metric("new_candidate_rows", len(new_candidate_keys))
         log(f"new candidate count: {len(new_candidate_keys)}")
 
-        new_probe_results = probe_many(new_candidate_keys, args.probe_concurrency, args.probe_timeout)
+        new_probe_results = probe_many(
+            new_candidate_keys,
+            args.probe_concurrency,
+            args.probe_timeout,
+            progress_label="probe_new_candidates",
+        )
         confirmed = insert_new_instances(conn, new_candidate_rows, new_probe_results)
         tracker.set_metric("confirmed_new_instances", confirmed)
         log(f"confirmed new instances inserted: {confirmed}")
 
         all_instance_keys = [row["ip_port"] for row in load_probe_instances(conn)]
         tracker.set_stage("refresh_runtime_state", {"instance_count": len(all_instance_keys)})
-        daily_probe_results = probe_many(all_instance_keys, args.probe_concurrency, args.probe_timeout)
+        daily_probe_results = probe_many(
+            all_instance_keys,
+            args.probe_concurrency,
+            args.probe_timeout,
+            progress_label="refresh_runtime_state",
+            progress_interval=2000,
+        )
         update_runtime_state(conn, daily_probe_results)
         snapshot_count = upsert_daily_snapshots(conn)
         tracker.set_metric("snapshot_rows", snapshot_count)

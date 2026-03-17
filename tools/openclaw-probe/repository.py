@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from common import parse_existing_date, read_csv_rows, split_ip_port
+from common import normalize_location_fields, parse_existing_date, read_csv_rows, split_ip_port
 from constants import TODAY
 
 
@@ -93,6 +93,11 @@ def bootstrap_instances(
         is_active = 1 if (alive_row.get("health") or "").strip() == "200" else 0
         last_active_at = parse_existing_date(row.get("last_seen", "") or row.get("first_seen", "")) if is_active else ""
         first_seen_at = parse_existing_date(row.get("first_seen", ""))
+        country_name, region, city = normalize_location_fields(
+            (row.get("country") or "").strip(),
+            (cn_row.get("region") or "").strip(),
+            (cn_row.get("city") or "").strip(),
+        )
 
         cursor.execute(
             """
@@ -109,9 +114,9 @@ def bootstrap_instances(
                 last_active_at or None,
                 is_active,
                 "legacy",
-                (row.get("country") or "").strip(),
-                (cn_row.get("region") or "").strip(),
-                (cn_row.get("city") or "").strip(),
+                country_name,
+                region,
+                city,
                 (row.get("asn") or "").strip(),
                 (row.get("org") or "").strip(),
                 server_version or None,
@@ -146,6 +151,11 @@ def insert_new_instances(
             continue
 
         ip, port = split_ip_port(ip_port)
+        country_name, region, city = normalize_location_fields(
+            (row.get("country_name") or "").strip(),
+            (row.get("region") or "").strip(),
+            (row.get("city") or "").strip(),
+        )
         cursor.execute(
             """
             INSERT INTO probe_instances (
@@ -161,9 +171,9 @@ def insert_new_instances(
                 TODAY,
                 1,
                 "fofa",
-                (row.get("country_name") or "").strip(),
-                (row.get("region") or "").strip(),
-                (row.get("city") or "").strip(),
+                country_name,
+                region,
+                city,
                 (row.get("asn") or "").strip(),
                 (row.get("org") or "").strip(),
                 probe_result["server_version"] or None,

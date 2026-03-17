@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 from pathlib import Path
 
 
@@ -15,7 +16,7 @@ CONFIGS_JSON_PATH = EXPOSURE_INPUT_DIR / "endpoint_alive_configs.json"
 CN_CSV_PATH = EXPOSURE_INPUT_DIR / "openclaw_instances_cn.csv"
 RUNS_DIR = EXPOSURE_INPUT_DIR / "runs"
 FOFA_CACHE_DIR = EXPOSURE_INPUT_DIR / "fofa_cache"
-FOFA_API_BASE_URL = "http://107.173.248.139:18999"
+FOFA_API_BASE_URL = os.getenv("FOFA_API_BASE_URL", "https://fofoapi.com")
 FOFA_SEARCH_ALL_API_URL = f"{FOFA_API_BASE_URL}/api/v1/search/all"
 FOFA_SEARCH_NEXT_API_URL = f"{FOFA_API_BASE_URL}/api/v1/search/next"
 TODAY = dt.date.today().isoformat()

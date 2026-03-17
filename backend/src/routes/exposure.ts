@@ -20,9 +20,6 @@ router.get('/geography', exposureController.getGeographicDistribution.bind(expos
 // 获取端口分布统计
 router.get('/ports', exposureController.getPortDistribution.bind(exposureController));
 
-// 获取风险等级分布
-router.get('/risk-levels', exposureController.getRiskLevelDistribution.bind(exposureController));
-
 // 获取时间趋势数据
 router.get('/trends', exposureController.getExposureTrends.bind(exposureController));
 

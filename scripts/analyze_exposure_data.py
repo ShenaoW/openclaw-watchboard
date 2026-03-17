@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""Analyze exposure CSV data and persist it into SQLite."""
+"""Analyze exposure probe data and persist it into SQLite."""
 
-import csv
 import json
 import re
 import sqlite3
-from collections import Counter, defaultdict
+import sys
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
 SCRIPT_DIR = Path(__file__).parent
+ROOT_DIR = SCRIPT_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
+
+from location_normalizer import GREATER_CHINA_COUNTRIES, normalize_country_name, normalize_location_fields
+
 DATA_DIR = SCRIPT_DIR.parent / "data"
-DEFAULT_CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_deduped.csv"
-LEGACY_CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_merged.csv"
-ALIVE_CSV_FILE = DATA_DIR / "explosure" / "endpoint_alive.csv"
-CONFIG_JSON_FILE = DATA_DIR / "explosure" / "endpoint_alive_configs.json"
-CN_CSV_FILE = DATA_DIR / "explosure" / "openclaw_instances_cn.csv"
 DB_PATH = DATA_DIR / "exposure.db"
 RISKS_DB_PATH = DATA_DIR / "risks.db"
 
@@ -32,8 +33,6 @@ SERVICE_MAP = {
     27017: "MongoDB",
 }
 
-HIGH_RISK_PORTS = {21, 23, 1433, 3306, 3389, 5432, 6379, 9200, 27017}
-MEDIUM_RISK_PORTS = {22, 25, 80, 443, 8080, 8443, 18789, 18888}
 SEVERITY_ORDER = {"Critical": 4, "High": 3, "Moderate": 2, "Medium": 2, "Low": 1}
 
 
@@ -237,10 +236,11 @@ def match_vulnerabilities_for_version(version: str, vulnerability_rules: List[Di
 
 
 def normalize_country(raw_country: str) -> Tuple[str, str]:
-    country = (raw_country or "").strip()
-    if not country:
+    raw_country = (raw_country or "").strip()
+    if not raw_country:
         return "Unknown", "Unknown"
 
+    country = normalize_country_name(raw_country)
     country_name = re.sub(r"^[^\w]+", "", country).strip() or country
     return country, country_name
 
@@ -251,31 +251,8 @@ def split_csv_values(value: str) -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def normalize_flag(value: str, yes_values: set[str], no_values: set[str], default: str = "Unknown") -> str:
-    cleaned = (value or "").strip()
-    if cleaned in yes_values:
-        return "Yes"
-    if cleaned in no_values:
-        return "No"
-    return default
-
-
 def service_name_for_port(port: int) -> str:
     return SERVICE_MAP.get(port, "OpenClaw")
-
-
-def get_first_present(row: Dict[str, str], *keys: str) -> str:
-    for key in keys:
-        value = row.get(key)
-        if value is not None and str(value).strip():
-            return str(value).strip()
-    return ""
-
-
-def resolve_csv_path() -> Path:
-    if DEFAULT_CSV_FILE.exists():
-        return DEFAULT_CSV_FILE
-    return LEGACY_CSV_FILE
 
 
 def mask_ip_third_segment(ip: str) -> str:
@@ -288,126 +265,31 @@ def mask_ip_third_segment(ip: str) -> str:
     return ".".join(parts)
 
 
-def load_runtime_probe_map() -> Dict[str, Dict[str, str]]:
-    if not ALIVE_CSV_FILE.exists():
-        return {}
-
-    runtime_map: Dict[str, Dict[str, str]] = {}
-    with ALIVE_CSV_FILE.open("r", encoding="utf-8-sig") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            ip_port = (row.get("ip_port") or "").strip()
-            if not ip_port:
-                continue
-
-            is_active = (row.get("health") or "").strip() == "200"
-
-            runtime_map[ip_port] = {
-                "runtime_status": "Active" if is_active else "Inactive",
-                "health": (row.get("health") or "").strip(),
-            }
-
-    return runtime_map
-
-
-def load_server_versions() -> Dict[str, str]:
-    if not CONFIG_JSON_FILE.exists():
-        return {}
-
-    with CONFIG_JSON_FILE.open("r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    version_map: Dict[str, str] = {}
-    if not isinstance(data, dict):
-        return version_map
-
-    for ip_port, payload in data.items():
-        if not isinstance(payload, dict):
-            continue
-        server_version = payload.get("serverVersion")
-        if isinstance(server_version, str) and server_version.strip():
-            version_map[ip_port] = server_version.strip()
-
-    return version_map
-
-
-def load_china_instance_map() -> Dict[str, Dict[str, str]]:
-    if not CN_CSV_FILE.exists():
-        return {}
-
-    cn_map: Dict[str, Dict[str, str]] = {}
-    with CN_CSV_FILE.open("r", encoding="utf-8-sig") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            ip_port = (row.get("ip_port") or "").strip()
-            if not ip_port:
-                continue
-            cn_map[ip_port] = {
-                "is_china_instance": "Yes",
-                "province": (row.get("region") or "").strip(),
-                "cn_city": (row.get("city") or "").strip(),
-            }
-
-    return cn_map
-
-
-def normalize_row(row: Dict[str, str]) -> Dict[str, str]:
-    status_value = get_first_present(row, "status", "has_leaked_creds")
-    normalized_status = "Leaked" if status_value.lower() == "leaked" else "Clean" if status_value.lower() == "clean" else status_value
-
-    return {
-        "ip_port": get_first_present(row, "ip_port"),
-        "assistant_name": get_first_present(row, "assistant_name"),
-        "country": get_first_present(row, "country"),
-        "authenticated": get_first_present(row, "authenticated", "auth_required"),
-        "active": get_first_present(row, "active", "is_active"),
-        "status": normalized_status or "Unknown",
-        "asn": get_first_present(row, "asn"),
-        "organization": get_first_present(row, "organization", "org"),
-        "isp": get_first_present(row, "isp", "asn_name"),
-        "first_seen": get_first_present(row, "first_seen"),
-        "last_seen": get_first_present(row, "last_seen"),
-        "credentials_leaked": get_first_present(row, "credentials_leaked", "has_leaked_creds"),
-        "has_mcp": get_first_present(row, "has_mcp"),
-        "apt_groups": get_first_present(row, "apt_groups", "asi_threat_actors"),
-        "cve_list": get_first_present(row, "cve_list", "asi_cves"),
-        "scan_time": get_first_present(row, "scan_time", "asi_enriched_at"),
-        "domains": get_first_present(row, "domains", "asi_domains"),
-    }
-
-
-def compute_risk_level(row: Dict[str, str], port: int, cve_count: int, apt_count: int) -> Tuple[str, int]:
-    status = (row.get("status") or "").strip()
-    credentials_leaked = normalize_flag(row.get("credentials_leaked", ""), {"Yes", "True", "Leaked"}, {"No", "False", "", "Clean"}, "Unknown")
-
-    if status == "Leaked":
-        return "Critical", 95
-
-    if credentials_leaked == "Yes":
-        return "High", 80
-
-    if port in HIGH_RISK_PORTS or cve_count >= 10 or apt_count >= 8:
-        return "High", 70
-
-    if port in MEDIUM_RISK_PORTS or cve_count > 0 or apt_count > 0:
-        return "Medium", 55
-
-    return "Low", 30
+def load_probe_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    conn.row_factory = sqlite3.Row
+    return conn.execute(
+        """
+        SELECT ip_port, ip, port, first_seen_at, last_active_at, is_active, source,
+               country_name, region, city, asn, org, server_version, updated_at
+        FROM probe_instances
+        ORDER BY ip_port
+        """
+    ).fetchall()
 
 
 def analyze_exposure_data():
-    csv_file = resolve_csv_path()
-    runtime_probe_map = load_runtime_probe_map()
-    version_map = load_server_versions()
-    china_instance_map = load_china_instance_map()
     vulnerability_rules = load_vulnerability_rules()
 
-    if not csv_file.exists():
-        print(f"❌ 暴露数据文件不存在: {csv_file}")
-        return
-
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+
+    probe_rows = load_probe_rows(conn)
+    if not probe_rows:
+        print("❌ probe_instances 为空，无法重建 exposure 统计")
+        print("💡 先运行 refresh:exposure-probe 填充探测库")
+        conn.close()
+        return
 
     cursor.execute("DELETE FROM exposure_instances")
     cursor.execute("DELETE FROM exposure_country_stats")
@@ -417,178 +299,151 @@ def analyze_exposure_data():
 
     total = 0
     active_instances = 0
-    risk_counter = Counter()
     status_counter = Counter()
-    credentials_counter = Counter()
     country_counter = Counter()
-    country_risk_counter = defaultdict(Counter)
-    country_leaked_counter = Counter()
     isp_counter = Counter()
     port_counter = Counter()
     province_counter = Counter()
-    province_city_counter = defaultdict(Counter)
     last_scan_candidates: List[str] = []
     matched_vulnerability_ids = set()
     historical_vulnerable_instances = 0
     historical_vulnerable_active_instances = 0
 
-    print(f"🔍 开始分析 exposure 数据: {csv_file}")
+    print("🔍 开始分析 exposure 数据: probe_instances")
 
-    with csv_file.open("r", encoding="utf-8-sig") as file:
-        reader = csv.DictReader(file)
-        for raw_row in reader:
-            row = normalize_row(raw_row)
-            ip_port = (row.get("ip_port") or "").strip()
-            if ":" not in ip_port:
-                continue
+    for probe_row in probe_rows:
+        ip_port = (probe_row["ip_port"] or "").strip()
+        if ":" not in ip_port:
+            continue
 
-            total += 1
+        total += 1
 
-            ip, port_str = ip_port.rsplit(":", 1)
-            masked_ip = mask_ip_third_segment(ip)
-            port = int(port_str) if port_str.isdigit() else 0
-            service = service_name_for_port(port)
+        ip = (probe_row["ip"] or "").strip() or ip_port.rsplit(":", 1)[0]
+        port = int(probe_row["port"] or 0)
+        masked_ip = mask_ip_third_segment(ip)
+        service = service_name_for_port(port)
 
-            country, country_name = normalize_country(row.get("country", ""))
-            cve_list = split_csv_values(row.get("cve_list", ""))
-            apt_groups = split_csv_values(row.get("apt_groups", ""))
-            domains = split_csv_values(row.get("domains", ""))
+        country, province, cn_city = normalize_location_fields(
+            probe_row["country_name"] or "",
+            probe_row["region"] or "",
+            probe_row["city"] or "",
+        )
+        country, country_name = normalize_country(country)
 
-            first_seen = parse_datetime(row.get("first_seen", ""))
-            last_seen = parse_datetime(row.get("last_seen", ""))
-            scan_time = parse_datetime(row.get("scan_time", ""))
+        cve_list: List[str] = []
+        apt_groups: List[str] = []
+        domains: List[str] = []
 
-            if scan_time:
-                last_scan_candidates.append(scan_time)
+        first_seen = parse_datetime(probe_row["first_seen_at"] or "")
+        last_seen = parse_datetime(probe_row["last_active_at"] or "")
+        scan_time = parse_datetime(probe_row["updated_at"] or "")
+        if scan_time:
+            last_scan_candidates.append(scan_time)
 
-            credentials_leaked = normalize_flag(
-                row.get("credentials_leaked", ""),
-                {"Yes", "True"},
-                {"No", "False"},
-                "Unknown",
-            )
-            authenticated = normalize_flag(
-                row.get("authenticated", ""),
-                {"Yes", "True"},
-                {"No", "False"},
-                "Unknown",
-            )
-            has_mcp = normalize_flag(
-                row.get("has_mcp", ""),
-                {"Yes", "True"},
-                {"No", "False"},
-                "Unknown",
-            )
-            active = normalize_flag(
-                row.get("active", ""),
-                {"True", "Yes"},
-                {"False", "No"},
-                "Unknown",
-            )
+        credentials_leaked = "Unknown"
+        authenticated = "Unknown"
+        has_mcp = "Unknown"
+        active = "Yes" if int(probe_row["is_active"] or 0) else "No"
+        runtime_status = "Active" if int(probe_row["is_active"] or 0) else "Inactive"
+        status = "Unknown"
+        isp = (probe_row["org"] or "").strip()
 
-            risk_level, risk_score = compute_risk_level(row, port, len(cve_list), len(apt_groups))
-            runtime_status = runtime_probe_map.get(ip_port, {}).get("runtime_status", "Unknown")
-            server_version = normalize_version_string(version_map.get(ip_port, "") or "")
-            normalized_server_version = server_version
-            historical_matches = match_vulnerabilities_for_version(normalized_server_version, vulnerability_rules) if normalized_server_version else []
-            historical_vuln_count = len(historical_matches)
-            historical_vuln_max_severity = historical_matches[0]["severity"] if historical_matches else None
-            historical_payload = json.dumps(historical_matches[:10], ensure_ascii=False) if historical_matches else None
-            china_instance = china_instance_map.get(ip_port, {})
-            is_china_instance = china_instance.get("is_china_instance", "No")
-            province = china_instance.get("province", "")
-            cn_city = china_instance.get("cn_city", "")
+        server_version = normalize_version_string(probe_row["server_version"] or "")
+        historical_matches = match_vulnerabilities_for_version(server_version, vulnerability_rules) if server_version else []
+        historical_vuln_count = len(historical_matches)
+        historical_vuln_max_severity = historical_matches[0]["severity"] if historical_matches else None
+        historical_payload = json.dumps(historical_matches[:10], ensure_ascii=False) if historical_matches else None
+        is_china_instance = "Yes" if country_name in GREATER_CHINA_COUNTRIES else "No"
+
+        if runtime_status == "Active":
+            active_instances += 1
+        if historical_vuln_count > 0:
+            historical_vulnerable_instances += 1
             if runtime_status == "Active":
-                active_instances += 1
-            if historical_vuln_count > 0:
-                historical_vulnerable_instances += 1
-                if runtime_status == "Active":
-                    historical_vulnerable_active_instances += 1
-                matched_vulnerability_ids.update(item["vulnerability_id"] or item["title"] for item in historical_matches)
+                historical_vulnerable_active_instances += 1
+            matched_vulnerability_ids.update(item["vulnerability_id"] or item["title"] for item in historical_matches)
 
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO exposure_instances (
-                    ip_port, ip, masked_ip, port, service, assistant_name, country, country_name,
-                    authenticated, active, status, asn, organization, isp, first_seen, last_seen,
-                    credentials_leaked, has_mcp, apt_groups, apt_group_count, cve_list, cve_count,
-                    scan_time, domains, runtime_status, server_version, is_china_instance, province, cn_city,
-                    historical_vuln_count, historical_vuln_max_severity, historical_vuln_matches,
-                    risk_level, risk_score, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """,
-                (
-                    ip_port,
-                    ip,
-                    masked_ip,
-                    port,
-                    service,
-                    (row.get("assistant_name") or "").strip(),
-                    country,
-                    country_name,
-                    authenticated,
-                    active,
-                    (row.get("status") or "Unknown").strip(),
-                    (row.get("asn") or "").strip(),
-                    (row.get("organization") or "").strip(),
-                    (row.get("isp") or "").strip(),
-                    first_seen,
-                    last_seen,
-                    credentials_leaked,
-                    has_mcp,
-                    json.dumps(apt_groups, ensure_ascii=False),
-                    len(apt_groups),
-                    json.dumps(cve_list),
-                    len(cve_list),
-                    scan_time,
-                    json.dumps(domains, ensure_ascii=False),
-                    runtime_status,
-                    server_version,
-                    is_china_instance,
-                    province,
-                    cn_city,
-                    historical_vuln_count,
-                    historical_vuln_max_severity,
-                    historical_payload,
-                    risk_level,
-                    risk_score,
-                ),
-            )
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO exposure_instances (
+                ip_port, ip, masked_ip, port, service, assistant_name, country, country_name,
+                authenticated, active, status, asn, organization, isp, first_seen, last_seen,
+                credentials_leaked, has_mcp, apt_groups, apt_group_count, cve_list, cve_count,
+                scan_time, domains, runtime_status, server_version, is_china_instance, province, cn_city,
+                historical_vuln_count, historical_vuln_max_severity, historical_vuln_matches
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ip_port,
+                ip,
+                masked_ip,
+                port,
+                service,
+                "",
+                country,
+                country_name,
+                authenticated,
+                active,
+                status,
+                (probe_row["asn"] or "").strip(),
+                (probe_row["org"] or "").strip(),
+                isp,
+                first_seen,
+                last_seen,
+                credentials_leaked,
+                has_mcp,
+                json.dumps(apt_groups, ensure_ascii=False),
+                len(apt_groups),
+                json.dumps(cve_list),
+                len(cve_list),
+                scan_time,
+                json.dumps(domains, ensure_ascii=False),
+                runtime_status,
+                server_version,
+                is_china_instance,
+                province if is_china_instance == "Yes" else "",
+                cn_city if is_china_instance == "Yes" else "",
+                historical_vuln_count,
+                historical_vuln_max_severity,
+                historical_payload,
+            ),
+        )
 
-            risk_counter[risk_level] += 1
-            status_counter[(row.get("status") or "Unknown").strip()] += 1
-            credentials_counter[credentials_leaked] += 1
-            country_counter[country_name] += 1
-            country_risk_counter[country_name][risk_level] += 1
-            if (row.get("status") or "").strip() == "Leaked":
-                country_leaked_counter[country_name] += 1
-            if row.get("isp"):
-                isp_counter[row["isp"].strip()] += 1
-            port_counter[port] += 1
-            if is_china_instance == "Yes" and province:
-                province_counter[province] += 1
-                province_city_counter[province][cn_city or province] += 1
+        status_counter[status] += 1
+        country_counter[country_name] += 1
+        if isp:
+            isp_counter[isp] += 1
+        port_counter[port] += 1
+        if is_china_instance == "Yes" and province:
+            province_counter[province] += 1
 
-            if total % 10000 == 0:
-                print(f"✅ 已处理 {total} 条暴露记录...")
+        if total % 10000 == 0:
+            print(f"✅ 已处理 {total} 条暴露记录...")
 
     total_instances = total
     last_scan_time = max(last_scan_candidates) if last_scan_candidates else None
-    china_exposed_services = sum(
-        1 for china_meta in china_instance_map.values() if china_meta.get("is_china_instance") == "Yes"
-    )
+    china_exposed_services = 0
     china_active_instances = 0
-    for ip_port, china_meta in china_instance_map.items():
-        if china_meta.get("is_china_instance") != "Yes":
+    for raw_row in conn.execute("SELECT country_name, runtime_status, is_china_instance FROM exposure_instances").fetchall():
+        country_name, runtime_status, is_china_instance = raw_row
+        if is_china_instance != "Yes" and (country_name or "") not in GREATER_CHINA_COUNTRIES:
             continue
-        if runtime_probe_map.get(ip_port, {}).get("runtime_status") == "Active":
+        china_exposed_services += 1
+        if runtime_status == "Active":
             china_active_instances += 1
     province_count = len(province_counter)
     city_count = sum(
         1
-        for _, cities in province_city_counter.items()
-        for city_name, city_value in cities.items()
-        if city_name and city_value > 0
+        for (city_name,) in conn.execute(
+            """
+            SELECT DISTINCT cn_city
+            FROM exposure_instances
+            WHERE is_china_instance = 'Yes'
+              AND cn_city IS NOT NULL
+              AND trim(cn_city) != ''
+            """
+        ).fetchall()
+        if city_name
     )
 
     cursor.execute(
@@ -596,10 +451,10 @@ def analyze_exposure_data():
         INSERT INTO exposure_summary (
             total_instances, active_instances, china_exposed_services, china_active_instances, province_count, city_count,
             clean_count, leaked_count, credentials_yes, credentials_no,
-            credentials_unknown, critical_count, high_count, medium_count, low_count,
+            credentials_unknown,
             country_count, historical_vulnerable_instances, historical_vulnerable_active_instances,
             historical_matched_vulnerability_count, last_scan_time
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             total_instances,
@@ -610,13 +465,9 @@ def analyze_exposure_data():
             city_count,
             status_counter["Clean"],
             status_counter["Leaked"],
-            credentials_counter["Yes"],
-            credentials_counter["No"],
-            credentials_counter["Unknown"],
-            risk_counter["Critical"],
-            risk_counter["High"],
-            risk_counter["Medium"],
-            risk_counter["Low"],
+            0,
+            0,
+            total_instances,
             len(country_counter),
             historical_vulnerable_instances,
             historical_vulnerable_active_instances,
@@ -630,18 +481,14 @@ def analyze_exposure_data():
         cursor.execute(
             """
             INSERT INTO exposure_country_stats (
-                country, country_name, count, leaked_count, critical_count, high_count, medium_count, low_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                country, country_name, count, leaked_count
+            ) VALUES (?, ?, ?, ?)
             """,
             (
                 raw_country,
                 country_name,
                 count,
-                country_leaked_counter[country_name],
-                country_risk_counter[country_name]["Critical"],
-                country_risk_counter[country_name]["High"],
-                country_risk_counter[country_name]["Medium"],
-                country_risk_counter[country_name]["Low"],
+                0,
             ),
         )
 
@@ -653,17 +500,15 @@ def analyze_exposure_data():
 
     for port, count in port_counter.items():
         percentage = round(count * 100.0 / total_instances, 2) if total_instances else 0
-        risk = "high" if port in HIGH_RISK_PORTS else "medium" if port in MEDIUM_RISK_PORTS else "low"
         cursor.execute(
-            "INSERT INTO exposure_port_stats (port, service, count, percentage, risk) VALUES (?, ?, ?, ?, ?)",
-            (port, service_name_for_port(port), count, percentage, risk),
+            "INSERT INTO exposure_port_stats (port, service, count, percentage) VALUES (?, ?, ?, ?)",
+            (port, service_name_for_port(port), count, percentage),
         )
 
     for province, count in province_counter.most_common():
-        top_city = province_city_counter[province].most_common(1)[0][0] if province_city_counter[province] else province
         cursor.execute(
-            "INSERT INTO exposure_province_stats (province, city, count) VALUES (?, ?, ?)",
-            (province, top_city, count),
+            "INSERT INTO exposure_province_stats (province, count) VALUES (?, ?)",
+            (province, count),
         )
 
     conn.commit()
@@ -675,10 +520,6 @@ def analyze_exposure_data():
     print(f"   历史漏洞关联实例: {historical_vulnerable_instances}")
     print(f"   历史漏洞关联活跃实例: {historical_vulnerable_active_instances}")
     print(f"   命中的历史漏洞条目: {len(matched_vulnerability_ids)}")
-    print(f"   Critical: {risk_counter['Critical']}")
-    print(f"   High: {risk_counter['High']}")
-    print(f"   Medium: {risk_counter['Medium']}")
-    print(f"   Low: {risk_counter['Low']}")
 
 
 if __name__ == "__main__":

@@ -8,10 +8,6 @@ export interface ExposureStats {
   countryCount: number;
   provinceCount: number;
   cityCount: number;
-  criticalExposures: number;
-  highRiskExposures: number;
-  mediumRiskExposures: number;
-  lowRiskExposures: number;
   historicalVulnerableInstances: number;
   historicalVulnerableActiveInstances: number;
   historicalMatchedVulnerabilityCount: number;
@@ -35,7 +31,6 @@ export interface ExposureStats {
     port: number;
     service: string;
     count: number;
-    risk: string;
   }>;
 }
 
@@ -92,19 +87,16 @@ export interface GeographicData {
   }>;
   china: Array<{
     province: string;
-    city: string;
     count: number;
     lat: number;
     lng: number;
   }>;
   provinceTop: Array<{
     province: string;
-    city: string;
     count: number;
   }>;
   cityTop: Array<{
     province: string;
-    city: string;
     count: number;
   }>;
 }
@@ -115,12 +107,6 @@ export interface PortDistribution {
     service: string;
     count: number;
     percentage: number;
-  }>;
-  unusual: Array<{
-    port: number;
-    service: string;
-    count: number;
-    risk: string;
   }>;
 }
 
@@ -225,32 +211,6 @@ export const exposureAPI = {
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to fetch port distribution');
-    }
-    return data.data;
-  },
-
-  // 获取风险等级分布
-  async getRiskLevelDistribution(): Promise<{
-    levels: Array<{
-      level: string;
-      count: number;
-      percentage: number;
-      color: string;
-    }>;
-    trend: {
-      [key: string]: {
-        current: number;
-        previous: number;
-        change: number;
-      };
-    };
-  }> {
-    const response = await fetch(`${API_BASE}/exposure/risk-levels`, {
-      headers: API_HEADERS,
-    });
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error?.message || 'Failed to fetch risk level distribution');
     }
     return data.data;
   },

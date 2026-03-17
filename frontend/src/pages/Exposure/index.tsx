@@ -92,6 +92,8 @@ const provinceNameMap: Record<string, string> = {
   Tibet: "西藏",
   Qinghai: "青海",
   "Ningxia Huizu": "宁夏",
+  Taiwan: "台湾",
+  台湾省: "台湾",
 };
 
 const cityNameMap: Record<string, string> = {
@@ -337,7 +339,6 @@ export default function Exposure() {
     radius: Math.max(5, Math.min(18, Math.sqrt(item.count) / 6)),
     color: getChinaDistributionColor(item.count, chinaMaxCount),
     provinceZh: provinceNameMap[item.province] || item.province,
-    cityZh: cityNameMap[item.city] || item.city,
   }));
 
   const geoDisplayData = (geographicData?.world || [])
@@ -359,12 +360,8 @@ export default function Exposure() {
     value: item.count,
   }));
 
-  const chinaCityTopData = (geographicData?.cityTop || []).map((item) => ({
-    city:
-      cityNameMap[item.city] ||
-      item.city ||
-      provinceNameMap[item.province] ||
-      item.province,
+  const chinaProvinceTopData = (geographicData?.provinceTop || []).map((item) => ({
+    province: provinceNameMap[item.province] || item.province,
     count: item.count,
   }));
 
@@ -1086,7 +1083,7 @@ export default function Exposure() {
                 </Geographies>
                 {chinaMarkers.map((point) => (
                   <Marker
-                    key={`${point.province}-${point.city}`}
+                    key={point.province}
                     coordinates={[point.lng, point.lat]}
                   >
                     <g>
@@ -1109,7 +1106,7 @@ export default function Exposure() {
                         />
                       </circle>
                       <Tooltip
-                        title={`${point.cityZh && point.cityZh !== point.provinceZh ? `${point.provinceZh} / ${point.cityZh}` : point.provinceZh}: ${point.count.toLocaleString()}`}
+                        title={`${point.provinceZh}: ${point.count.toLocaleString()}`}
                       >
                         <circle
                           r={point.radius}
@@ -1128,15 +1125,15 @@ export default function Exposure() {
           </Spin>
         </div>
         <Row gutter={16} style={{ marginTop: 16 }}>
-          {chinaCityTopData.map((item) => (
-            <Col key={item.city} flex="1 1 0">
+          {chinaProvinceTopData.map((item) => (
+            <Col key={item.province} flex="1 1 0">
               <div style={{ textAlign: "center", padding: "8px 0" }}>
                 <div
                   style={{ fontSize: 20, fontWeight: "bold", color: "#1677ff" }}
                 >
                   {item.count.toLocaleString()}
                 </div>
-                <div style={{ fontSize: 12, color: "#666" }}>{item.city}</div>
+                <div style={{ fontSize: 12, color: "#666" }}>{item.province}</div>
               </div>
             </Col>
           ))}

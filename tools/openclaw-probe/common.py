@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
+import sys
 from pathlib import Path
 from typing import Any
 
 from constants import TODAY
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = ROOT_DIR / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.append(str(SCRIPTS_DIR))
+
+from location_normalizer import normalize_country_name, normalize_location_fields
 
 
 def log(message: str) -> None:
@@ -48,18 +56,14 @@ def parse_existing_date(value: str) -> str:
 
 
 def country_code_from_name(country_name: str) -> str:
+    normalized = normalize_country_name(country_name)
     mapping = {
-        "china": "CN",
         "中国": "CN",
-        "hong kong": "HK",
-        "香港": "HK",
-        "taiwan": "TW",
-        "台湾": "TW",
-        "macao": "MO",
-        "macau": "MO",
-        "澳门": "MO",
+        "中国香港特别行政区": "HK",
+        "中国台湾省": "TW",
+        "中国澳门特别行政区": "MO",
     }
-    return mapping.get((country_name or "").strip().lower(), "")
+    return mapping.get(normalized, "")
 
 
 def build_ip_port(row: dict[str, str]) -> str:
@@ -75,3 +79,17 @@ def split_ip_port(ip_port: str) -> tuple[str, int]:
         return ip_port, 0
     ip, port_text = ip_port.rsplit(":", 1)
     return ip, int(port_text) if port_text.isdigit() else 0
+
+
+__all__ = [
+    "log",
+    "ensure_parent",
+    "read_csv_rows",
+    "write_csv_rows",
+    "parse_existing_date",
+    "country_code_from_name",
+    "build_ip_port",
+    "split_ip_port",
+    "normalize_country_name",
+    "normalize_location_fields",
+]
